@@ -6,6 +6,7 @@
     { "path": "./tsconfig.server.json" }
   ],
   "compilerOptions": {
+    "jsx": "react-jsx",
     "outDir": "./dist",
     "rootDir": "./src",
     "moduleResolution": "node",
