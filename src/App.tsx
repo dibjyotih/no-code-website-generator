@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import './App.css';
-import { FiUpload, FiMic } from 'react-icons/fi';
+import { FiUpload, FiMic, FiCopy, FiCheck } from 'react-icons/fi';
 
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -8,9 +8,10 @@ function App() {
   const [html, setHtml] = useState('');
   const [css, setCss] = useState('');
   const [js, setJs] = useState('');
+  const [copied, setCopied] = useState<{ html: boolean; css: boolean; js: boolean }>({ html: false, css: false, js: false });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'preview' | 'html' | 'css' | 'js'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
 
   useEffect(() => {
     document.body.className = '';
@@ -45,9 +46,10 @@ function App() {
     }
   };
 
-  const handleCopy = (code: string) => {
+  const handleCopy = (code: string, type: 'html' | 'css' | 'js') => {
     navigator.clipboard.writeText(code);
-    alert('Copied to clipboard!');
+    setCopied((prev) => ({ ...prev, [type]: true }));
+    setTimeout(() => setCopied((prev) => ({ ...prev, [type]: false })), 2000);
   };
 
   return (
@@ -111,29 +113,35 @@ function App() {
         <div className="output-section">
           <div className="tab-buttons">
             <button onClick={() => setActiveTab('preview')} className={activeTab === 'preview' ? 'tab active' : 'tab'}>Preview</button>
-            <button onClick={() => setActiveTab('html')} className={activeTab === 'html' ? 'tab active' : 'tab'}>HTML</button>
-            <button onClick={() => setActiveTab('css')} className={activeTab === 'css' ? 'tab active' : 'tab'}>CSS</button>
-            <button onClick={() => setActiveTab('js')} className={activeTab === 'js' ? 'tab active' : 'tab'}>JavaScript</button>
+            <button onClick={() => setActiveTab('code')} className={activeTab === 'code' ? 'tab active' : 'tab'}>Code</button>
           </div>
 
           {activeTab === 'preview' && <iframe title="Generated Website" srcDoc={`<style>${css}</style><body>${html}<script>${js}</script>`} className="iframe" />}
-          {activeTab === 'html' && (
-            <>
-              <textarea value={html} readOnly className="code-box" />
-              <button onClick={() => handleCopy(html)} className="copy-button">Copy HTML</button>
-            </>
-          )}
-          {activeTab === 'css' && (
-            <>
-              <textarea value={css} readOnly className="code-box" />
-              <button onClick={() => handleCopy(css)} className="copy-button">Copy CSS</button>
-            </>
-          )}
-          {activeTab === 'js' && (
-            <>
-              <textarea value={js} readOnly className="code-box" />
-              <button onClick={() => handleCopy(js)} className="copy-button">Copy JavaScript</button>
-            </>
+
+          {activeTab === 'code' && (
+            <div className="code-container">
+              <div className="code-section">
+                <h3>HTML</h3>
+                <button className="copy-icon-button" onClick={() => handleCopy(html, 'html')}>
+                  {copied.html ? <FiCheck /> : <FiCopy />}
+                </button>
+                <textarea value={html} readOnly className="code-box" />
+              </div>
+              <div className="code-section">
+                <h3>CSS</h3>
+                <button className="copy-icon-button" onClick={() => handleCopy(css, 'css')}>
+                  {copied.css ? <FiCheck /> : <FiCopy />}
+                </button>
+                <textarea value={css} readOnly className="code-box" />
+              </div>
+              <div className="code-section">
+                <h3>JavaScript</h3>
+                <button className="copy-icon-button" onClick={() => handleCopy(js, 'js')}>
+                  {copied.js ? <FiCheck /> : <FiCopy />}
+                </button>
+                <textarea value={js} readOnly className="code-box" />
+              </div>
+            </div>
           )}
         </div>
       )}
