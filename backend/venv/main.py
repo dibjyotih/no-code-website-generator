@@ -8,7 +8,7 @@ from PIL import Image
 import io
 
 # Load your Gemini API key
-genai.configure(api_key="AIzaSyAgrZPGbg0DAKoHOqGdkSsrEzPwvPcXUhQ")
+genai.configure(api_key="YOUR_API_KEY")
 
 app = FastAPI()
 
