@@ -5,10 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 
 # Load your Gemini API key
-api_key = os.getenv("GEMINI_API_KEY")
-genai.configure(api_key=api_key)
+genai.configure(api_key="YOUR_API_KEY")
 
 app = FastAPI()
+
 
 # Allow all CORS (for local frontend dev)
 app.add_middleware(
