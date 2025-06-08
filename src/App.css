@@ -72,7 +72,7 @@ body.theme-dark {
 .loading-text {
   font-size: 1rem;
   font-weight: 500;
-  color: var(--text-color, #333);
+  color: var(--text-color, #333333);
 }
 
 .app-wrapper {
@@ -151,7 +151,7 @@ body.theme-dark {
   border: none;
   cursor: pointer;
   font-size: 1.2rem;
-  color: #333;
+  color: #333333;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -166,6 +166,15 @@ body.theme-dark .chat-icon {
   color: #f1f1f1;
 }
 
+.input-container {
+  display: flex;
+  align-items: center;
+  flex-grow: 1;
+  background: transparent;
+  border-radius: 1.5rem;
+  padding: 0.25rem;
+}
+
 .input.full-width {
   flex-grow: 1;
   padding: 0.75rem 1rem;
@@ -175,6 +184,18 @@ body.theme-dark .chat-icon {
   outline: none;
   background: transparent;
   color: inherit;
+}
+
+.input-container img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  margin-right: 0.5rem;
+}
+
+body.theme-dark .input-container img {
+  border: 1px solid #444444;
 }
 
 .generate-below {
@@ -219,7 +240,6 @@ body.theme-dark .chat-icon {
   color: white;
 }
 
-
 .status,
 .error {
   font-weight: 500;
@@ -240,7 +260,7 @@ body.theme-dark .chat-icon {
 
 .tab {
   padding: 0.6rem 1rem;
-  background: #ccc;
+  background: #cccccc;
   border: none;
   border-radius: 5px;
   margin-right: 0.5rem;
@@ -257,7 +277,7 @@ body.theme-dark .chat-icon {
 .iframe {
   width: 100%;
   height: 500px;
-  border: 1px solid #aaa;
+  border: 1px solid #aaaaaa;
   border-radius: 8px;
 }
 
@@ -268,7 +288,7 @@ body.theme-dark .chat-icon {
   font-family: monospace;
   border-radius: 8px;
   background: #f7f7f7;
-  border: 1px solid #ddd;
+  border: 1px solid #dddddd;
 }
 
 .copy-button {
@@ -282,8 +302,8 @@ body.theme-dark .chat-icon {
 }
 
 .theme-dark .tab {
-  background: #333;
-  color: #ccc;
+  background: #333333;
+  color: #cccccc;
 }
 
 .theme-dark .tab.active {
@@ -294,9 +314,8 @@ body.theme-dark .chat-icon {
 .theme-dark .code-box {
   background: #1e1e1e;
   color: #f1f1f1;
-  border: 1px solid #444;
+  border: 1px solid #444444;
 }
-/* ...existing styles remain unchanged... */
 
 .code-container {
   display: flex;
@@ -311,8 +330,8 @@ body.theme-dark .chat-icon {
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
   overflow: hidden;
   padding: 1rem 0;
-  border-top: 1px solid #ccc;
-  border-bottom: 1px solid #ccc;
+  border-top: 1px solid #cccccc;
+  border-bottom: 1px solid #cccccc;
 }
 
 .code-section {
@@ -320,7 +339,7 @@ body.theme-dark .chat-icon {
   display: flex;
   flex-direction: column;
   padding: 1rem 1.25rem;
-  border-right: 1px solid #ccc;
+  border-right: 1px solid #cccccc;
   height: 100%;
   position: relative;
 }
@@ -343,7 +362,7 @@ body.theme-dark .chat-icon {
   border: none;
   resize: none;
   background: #f9f9f9;
-  color: #222;
+  color: #222222;
   font-size: 0.95rem;
   border-radius: 6px;
   margin-bottom: 0.5rem;
@@ -363,7 +382,7 @@ body.theme-dark .chat-icon {
   border: none;
   cursor: pointer;
   font-size: 1.2rem;
-  color: #666;
+  color: #666666;
   transition: color 0.2s ease;
 }
 
@@ -377,7 +396,7 @@ body.theme-dark .chat-icon {
 }
 
 .theme-dark .copy-icon-button {
-  color: #bbb;
+  color: #bbbbbb;
 }
 
 .preview-container {
@@ -386,8 +405,8 @@ body.theme-dark .chat-icon {
   transform: translateX(-50%);
   width: 100vw;
   margin-top: 2rem;
-  border-top: 1px solid #ccc;
-  border-bottom: 1px solid #ccc;
+  border-top: 1px solid #cccccc;
+  border-bottom: 1px solid #cccccc;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 0;
   padding: 1rem;
@@ -409,7 +428,7 @@ body.theme-dark .chat-icon {
   }
   .code-section {
     border-right: none;
-    border-bottom: 1px solid #ccc;
+    border-bottom: 1px solid #cccccc;
   }
   .code-section:last-child {
     border-bottom: none;

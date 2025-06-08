@@ -5,6 +5,8 @@ import { FiUpload, FiMic, FiCopy, FiCheck } from 'react-icons/fi';
 function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [prompt, setPrompt] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [html, setHtml] = useState('');
   const [css, setCss] = useState('');
   const [js, setJs] = useState('');
@@ -16,7 +18,12 @@ function App() {
   useEffect(() => {
     document.body.className = '';
     document.body.classList.add(`theme-${theme}`);
-  }, [theme]);
+    return () => {
+      if (previewImage) {
+        URL.revokeObjectURL(previewImage);
+      }
+    };
+  }, [theme, previewImage]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
@@ -24,25 +31,96 @@ function App() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!prompt && !file) {
+      setError('Please provide a prompt or upload an image.');
+      console.log('Submission failed: No prompt or file provided');
+      return;
+    }
     setLoading(true);
     setError('');
+    setPreviewImage(null);
     try {
+      const formData = new FormData();
+      if (prompt) formData.append('prompt', prompt);
+      if (file) formData.append('file', file);
+
+      console.log('Sending request with prompt:', prompt, 'and file:', file ? file.name : 'none');
+
       const response = await fetch('http://127.0.0.1:8000/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt }),
+        body: formData,
       });
 
-      if (!response.ok) throw new Error('Error from backend');
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Backend error: ${errorText}`);
+      }
       const data = await response.json();
+      if (data.error) throw new Error(data.error);
       setHtml(data.html || '');
       setCss(data.css || '');
       setJs(data.js || '');
     } catch (err) {
-      setError('Failed to generate website.');
-      console.error(err);
+      setError(`Failed to generate website: ${err}`);
+      console.error('Submission error:', err);
     } finally {
       setLoading(false);
+      setFile(null);
+    }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      const imageUrl = URL.createObjectURL(selectedFile);
+      setPreviewImage(imageUrl);
+      console.log('File selected:', selectedFile.name, 'Preview URL:', imageUrl);
+    } else {
+      setPreviewImage(null);
+      setFile(null);
+    }
+  };
+
+  const handleSpeechToText = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setError('Speech-to-text is not supported in this browser. Try Chrome or Edge.');
+      console.log('Speech-to-Text: API not supported');
+      return;
+    }
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        console.log('Speech-to-Text: Recording started');
+        setError('Recording... Speak your prompt now.');
+      };
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setPrompt(transcript);
+        console.log('Speech-to-Text: Transcript received:', transcript);
+        setError('');
+      };
+
+      recognition.onend = () => {
+        console.log('Speech-to-Text: Recording stopped');
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech-to-Text Error:', event.error);
+        setError(`Speech-to-text failed: ${event.error}. Check microphone permissions or try Chrome/Edge.`);
+      };
+
+      console.log('Speech-to-Text: Initiating recognition');
+      recognition.start();
+    } catch (err) {
+      console.error('Speech-to-Text Initialization Error:', err);
+      setError('Failed to initialize speech-to-text. Ensure microphone access and try Chrome or Edge.');
     }
   };
 
@@ -70,20 +148,40 @@ function App() {
 
       <form onSubmit={handleSubmit} className="form chat-box">
         <div className="chat-input-wrapper">
-          <label htmlFor="file-upload" className="chat-icon" title="Upload file">
+          <label htmlFor="file-upload" className="chat-icon" title="Upload image to generate website">
             <FiUpload size={20} />
           </label>
-          <input id="file-upload" type="file" hidden />
-
           <input
-            type="text"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Enter your website prompt..."
-            className="input full-width"
+            id="file-upload"
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={handleFileUpload}
           />
 
-          <button type="button" className="chat-icon" title="Voice input">
+          <div className="input-container">
+            {previewImage && (
+              <img
+                src={previewImage}
+                alt="Preview"
+                className="input-container img"
+              />
+            )}
+            <input
+              type="text"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Enter or speak your website prompt..."
+              className="input full-width"
+            />
+          </div>
+
+          <button
+            type="button"
+            className="chat-icon"
+            title="Speak to enter prompt"
+            onClick={handleSpeechToText}
+          >
             <FiMic size={20} />
           </button>
         </div>
@@ -116,7 +214,11 @@ function App() {
             <button onClick={() => setActiveTab('code')} className={activeTab === 'code' ? 'tab active' : 'tab'}>Code</button>
           </div>
 
-          {activeTab === 'preview' && <iframe title="Generated Website" srcDoc={`<style>${css}</style><body>${html}<script>${js}</script>`} className="iframe" />}
+          {activeTab === 'preview' && (
+            <div className="preview-container">
+              <iframe title="Generated Website" srcDoc={`<!DOCTYPE html><html><head><style>${css}</style></head><body>${html}<script>${js}</script></body></html>`} className="iframe" />
+            </div>
+          )}
 
           {activeTab === 'code' && (
             <div className="code-container">
