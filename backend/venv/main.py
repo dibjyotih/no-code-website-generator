@@ -8,9 +8,11 @@ from PIL import Image
 import io
 
 # Load your Gemini API key
-genai.configure(api_key="")
+
+genai.configure(api_key="AIzaSyAgrZPGbg0DAKoHOqGdkSsrEzPwvPcXUhQ")
 
 app = FastAPI()
+
 
 # Allow all CORS (for local frontend dev)
 app.add_middleware(
