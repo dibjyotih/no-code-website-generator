@@ -166,6 +166,15 @@ body.theme-dark .chat-icon {
   color: #f1f1f1;
 }
 
+.input-container {
+  display: flex;
+  align-items: center;
+  flex-grow: 1;
+  background: transparent;
+  border-radius: 1.5rem;
+  padding: 0.25rem;
+}
+
 .input.full-width {
   flex-grow: 1;
   padding: 0.75rem 1rem;
@@ -175,6 +184,18 @@ body.theme-dark .chat-icon {
   outline: none;
   background: transparent;
   color: inherit;
+}
+
+.input-container img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  margin-right: 0.5rem;
+}
+
+body.theme-dark .input-container img {
+  border: 1px solid #444;
 }
 
 .generate-below {
@@ -218,7 +239,6 @@ body.theme-dark .chat-icon {
 .generate-below:hover .text {
   color: white;
 }
-
 
 .status,
 .error {
@@ -296,7 +316,6 @@ body.theme-dark .chat-icon {
   color: #f1f1f1;
   border: 1px solid #444;
 }
-/* ...existing styles remain unchanged... */
 
 .code-container {
   display: flex;
