@@ -2,13 +2,13 @@
     "extends": "./tsconfig.json",
     "compilerOptions": {
       "outDir": "./dist/server",
-    "rootDir": "./src/server",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "target": "ES2022",
-    "esModuleInterop": true,
-    "strict": true
+      "rootDir": "./backend",
+      "module": "NodeNext",
+      "moduleResolution": "NodeNext",
+      "target": "ES2022",
+      "esModuleInterop": true,
+      "strict": true
     },
-    "include": ["src/server/**/*"],
+    "include": ["backend/**/*"],
     "exclude": ["node_modules"]
   }

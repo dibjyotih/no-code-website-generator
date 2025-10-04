@@ -46,7 +46,7 @@ function App() {
 
       console.log('Sending request with prompt:', prompt, 'and file:', file ? file.name : 'none');
 
-      const response = await fetch('http://127.0.0.1:8000/generate', {
+      const response = await fetch('http://localhost:8000/generate', {
         method: 'POST',
         body: formData,
       });
@@ -100,7 +100,7 @@ function App() {
         setError('Recording... Speak your prompt now.');
       };
 
-      recognition.onresult = (event) => {
+      recognition.onresult = (event: SpeechRecognitionEvent) => {
         const transcript = event.results[0][0].transcript;
         setPrompt(transcript);
         console.log('Speech-to-Text: Transcript received:', transcript);
@@ -111,7 +111,7 @@ function App() {
         console.log('Speech-to-Text: Recording stopped');
       };
 
-      recognition.onerror = (event) => {
+      recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
         console.error('Speech-to-Text Error:', event.error);
         setError(`Speech-to-text failed: ${event.error}. Check microphone permissions or try Chrome/Edge.`);
       };

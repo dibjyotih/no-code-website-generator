@@ -28,3 +28,4 @@ __pycache__/
 node_modules/
 backend/venv/*.pyc
 backend/venv/__pycache__/
+backend/.env
