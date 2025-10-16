@@ -1,145 +1,72 @@
-import express from "express";
-import cors from "cors";
-import multer from "multer";
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, Part } from "@google/generative-ai";
-import dotenv from "dotenv";
+import dotenv from 'dotenv';
+// Load environment variables FIRST to ensure they are available for all imported modules.
+dotenv.config({ path: 'backend/.env' });
 
-dotenv.config({ path: "backend/.env" });
+import express from 'express';
+import cors from 'cors';
+import multer from 'multer';
+import initializeRagSystem, { getRagStatus } from './rag-system/index.js';
+import { generateEnhancedComponent } from './services/enhanced-generator.js';
+import { generateSimpleComponent } from './services/simple-generator.js'; // Fallback generator
+
+// Load environment variables
+dotenv.config({ path: 'backend/.env' });
 
 const app = express();
-const port = 8000;
+const port = process.env.PORT || 8000;
 const upload = multer({ storage: multer.memoryStorage() });
 
-const MODEL_NAME = "gemini-2.5-flash";
-const API_KEY = process.env.GEMINI_API_KEY || "";
-
-app.use(cors({ origin: "http://localhost:5173" }));
+// Middleware
+app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
 
-/**
- * --- 🔧 FIXED CLEAN PARSER ---
- * Extracts HTML, CSS, and JS safely from Gemini output
- */
-const parseContent = (content: string) => {
-  if (!content) return { html: "", css: "", js: "" };
+// -- RAG-enhanced /generate endpoint --
+app.post('/generate', upload.single('file'), async (req, res) => {
+  const { prompt } = req.body;
 
-  // Remove markdown & explanations
-  let cleanContent = content
-    .replace(/```(html|css|javascript|js)?/gi, "")
-    .replace(/```/g, "")
-    .replace(/(^|\n)(Here.?|Okay|Sure|Let's|You can|Below|###|---).*\n?/gi, "")
-    .replace(/^.*?(?=<\s*html|<\s*body)/is, "")
-    .replace(/<\/html>.*$/is, "</html>")
-    .trim();
+  if (!prompt) {
+    return res.status(400).json({ error: 'Prompt is required' });
+  }
 
-  // Extract code using regex
-  const styleMatch = cleanContent.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
-  const scriptMatch = cleanContent.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
-  const htmlMatch = cleanContent.match(/<html[\s\S]*<\/html>/i) || cleanContent.match(/<body[\s\S]*<\/body>/i);
-
-  const html = htmlMatch
-    ? htmlMatch[0]
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-        .trim()
-    : cleanContent;
-
-  const css = styleMatch ? styleMatch[1].trim() : "";
-  const js = scriptMatch ? scriptMatch[1].trim() : "";
-
-  return { html, css, js };
-};
-
-/**
- * --- 🧠 /generate Endpoint ---
- * Explicitly instructs Gemini to produce only HTML/CSS/JS (no text)
- */
-app.post("/generate", upload.single("file"), async (req, res) => {
   try {
-    const genAI = new GoogleGenerativeAI(API_KEY);
-    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
-
-    const { prompt } = req.body;
-    const file = req.file;
-
-    if (!prompt) {
-      return res.status(400).json({ error: "A prompt is required." });
+    let generatedCode;
+    if (getRagStatus()) {
+      console.log('✅ RAG system is ready. Generating component with context...');
+      generatedCode = await generateEnhancedComponent(prompt);
+    } else {
+      console.log('⚠️ RAG system not available. Falling back to simple generation...');
+      generatedCode = await generateSimpleComponent(prompt);
     }
-
-    // 🧠 Strong system-style instruction for clean output
-    const systemInstruction = `
-You are a website generator AI.
-Generate a complete, responsive webpage based on the user’s prompt using HTML, CSS, and JavaScript only.
-Return code only — no explanations, markdown, or comments.
-Always include:
-1. <html> ... </html>
-2. <style> ... </style>
-3. <script> ... </script>
-Do not describe what you are doing and no extra content just a clean output with mordern styling.
-`;
-
-    const parts: Part[] = [
-      { text: systemInstruction },
-      { text: `User request: ${prompt}` },
-    ];
-
-    if (file) {
-      parts.push({
-        inlineData: {
-          mimeType: file.mimetype,
-          data: file.buffer.toString("base64"),
-        },
-      });
-    }
-
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts }],
-      generationConfig: {
-        temperature: 0.7,
-        topK: 64,
-        topP: 0.9,
-        maxOutputTokens: 8192,
-      },
-      safetySettings: [
-        {
-          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-        {
-          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-          threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-        },
-      ],
-    });
-
-    const responseText = result.response.text();
-    const parsed = parseContent(responseText);
-
-    // 🧩 Ensure valid structure for the preview iframe
-    const safeHtml =
-      parsed.html.startsWith("<!DOCTYPE") || parsed.html.startsWith("<html")
-        ? parsed.html
-        : `<!DOCTYPE html><html><head><meta charset="UTF-8"></head><body>${parsed.html}</body></html>`;
-
-    res.json({
-      html: safeHtml,
-      css: parsed.css,
-      js: parsed.js,
-    });
+    res.json({ nextJsCode: generatedCode });
   } catch (error) {
-    console.error("❌ Backend error:", error);
-    res.status(500).json({ error: "An error occurred while generating content." });
+    console.error('❌ Backend /generate endpoint error:', error);
+    res.status(500).json({ error: 'Failed to generate component.' });
   }
 });
 
-app.listen(port, () => {
-  console.log(`✅ Server running on http://localhost:${port}`);
+// Renaming the old /rag-generate endpoint to /generate for consistency
+app.post('/rag-generate', (req, res) => {
+  res.status(410).json({ message: 'This endpoint is deprecated. Please use /generate.' });
 });
+
+// Server Initialization
+const startServer = async () => {
+  try {
+    // Initialize the RAG system but don't block server start if it fails
+    await initializeRagSystem();
+
+    app.listen(port, () => {
+      if (getRagStatus()) {
+        console.log(`✅ RAG-enhanced server running on http://localhost:${port}`);
+      } else {
+        console.log(`⚠️ Server running in fallback mode on http://localhost:${port} (RAG system failed to initialize)`);
+      }
+    });
+  } catch (error) {
+    console.error('💥 Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
+

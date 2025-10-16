@@ -7,7 +7,9 @@
       "moduleResolution": "NodeNext",
       "target": "ES2022",
       "esModuleInterop": true,
-      "strict": true
+      "strict": true,
+      "allowJs": true,
+      "checkJs": false
     },
     "include": ["backend/**/*"],
     "exclude": ["node_modules"]

@@ -26,6 +26,5 @@ dist-ssr
 __pycache__/
 *.pyc
 node_modules/
-backend/venv/*.pyc
-backend/venv/__pycache__/
-backend/.env
+backend/.envbackend/chroma-data/
+backend/hnswlib-data/
