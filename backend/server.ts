@@ -1,65 +1,468 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import dotenv from 'dotenv';
-// Load environment variables FIRST to ensure they are available for all imported modules.
 dotenv.config({ path: 'backend/.env' });
 
 import express from 'express';
 import cors from 'cors';
+import mongoose from 'mongoose';
+import { initializeRagSystem, ragSystem } from './rag-system/index.js';
+import { componentGenerator } from './generators/component-generator.js';
+import { reviewCode } from './services/code-validator.js';
+import { modifyComponent } from './services/contextual-modifier.js';
+import { generateImage } from './services/image-generator.js';
+import { register, login, verifyToken, getProfile, updateProfile } from './services/auth.js';
+import { generateDatabaseSchema } from './services/database-generator.js';
+import { generateAPIRoutes, generateAuthSystem } from './services/api-generator.js';
+import { exportFullStackProject } from './services/project-exporter.js';
+import Project from './models/Project.js';
+import User from './models/User.js';
+import Deployment from './models/Deployment.js';
 import multer from 'multer';
-import initializeRagSystem, { getRagStatus } from './rag-system/index.js';
-import { generateEnhancedComponent } from './services/enhanced-generator.js';
-import { generateSimpleComponent } from './services/simple-generator.js'; // Fallback generator
-
-// Load environment variables
-dotenv.config({ path: 'backend/.env' });
 
 const app = express();
-const port = process.env.PORT || 8000;
-const upload = multer({ storage: multer.memoryStorage() });
+const PORT = process.env.PORT || 8000;
+const upload = multer();
+
+// Disable Mongoose buffering to prevent timeout errors when MongoDB is not connected
+mongoose.set('bufferCommands', false);
+mongoose.set('bufferTimeoutMS', 0);
+
+// Connect to MongoDB (optional - app works without database)
+if (process.env.MONGODB_URI) {
+  mongoose.connect(process.env.MONGODB_URI, {
+    serverSelectionTimeoutMS: 5000, // Timeout after 5 seconds instead of 30
+  })
+    .then(() => console.log('✅ Connected to MongoDB'))
+    .catch(err => {
+      console.log('⚠️  MongoDB not available (app will work without persistence)');
+      console.log('   To enable MongoDB: Set MONGODB_URI in backend/.env');
+    });
+} else {
+  console.log('⚠️  MONGODB_URI not set - running without database persistence');
+  console.log('   Data will not be saved across server restarts');
+}
 
 // Middleware
-app.use(cors({ origin: 'http://localhost:5173' }));
-app.use(express.json());
+app.use(cors());
+app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// -- RAG-enhanced /generate endpoint --
-app.post('/generate', upload.single('file'), async (req, res) => {
+app.post('/generate', upload.single('image'), async (req, res) => {
   const { prompt } = req.body;
-
   if (!prompt) {
     return res.status(400).json({ error: 'Prompt is required' });
   }
 
+  let imagePart = null;
+  if (req.file) {
+    imagePart = {
+      inlineData: {
+        data: req.file.buffer.toString('base64'),
+        mimeType: req.file.mimetype,
+      },
+    };
+  }
+
+  const result = await componentGenerator(prompt, imagePart);
+
+  if (result.error) {
+    console.error("❌ Returning error to frontend:", result.error);
+    return res.status(500).json(result.error);
+  }
+  
+  console.log("✅ Sending successful response to frontend with code length:", result.code?.length);
+  res.json({ code: result.code });
+});
+
+app.post('/review', async (req, res) => {
+  const { code } = req.body;
+  if (!code) {
+    return res.status(400).json({ error: 'Code is required for review' });
+  }
+
   try {
-    let generatedCode;
-    if (getRagStatus()) {
-      console.log('✅ RAG system is ready. Generating component with context...');
-      generatedCode = await generateEnhancedComponent(prompt);
-    } else {
-      console.log('⚠️ RAG system not available. Falling back to simple generation...');
-      generatedCode = await generateSimpleComponent(prompt);
-    }
-    res.json({ nextJsCode: generatedCode });
+    const review = await reviewCode(code);
+    res.json({ review });
   } catch (error) {
-    console.error('❌ Backend /generate endpoint error:', error);
-    res.status(500).json({ error: 'Failed to generate component.' });
+    console.error('Error during review:', error);
+    res.status(500).json({ error: 'Failed to review code' });
   }
 });
 
-// Renaming the old /rag-generate endpoint to /generate for consistency
-app.post('/rag-generate', (req, res) => {
-  res.status(410).json({ message: 'This endpoint is deprecated. Please use /generate.' });
+app.post('/modify', async (req, res) => {
+  const { componentCode, prompt, context, imageDataUrl, imagePrompt } = req.body;
+  if (!componentCode || !prompt) {
+      return res.status(400).json({ error: 'Component code and prompt are required' });
+  }
+
+  try {
+      console.log('🔄 Modifying component...');
+      console.log('📝 Prompt:', prompt.substring(0, 200));
+      console.log('📦 Context received:', JSON.stringify(context, null, 2));
+      
+      // PRIORITY 1: Handle AI image generation if imagePrompt is provided
+      if (imagePrompt) {
+        console.log(`🎨 AI Image Generation requested: "${imagePrompt}"`);
+        const newImage = await generateImage(imagePrompt);
+        console.log('✅ New image generated, length:', newImage.length);
+        
+        // Replace the image in the code
+        let modifiedCode = componentCode;
+        let replaced = false;
+        
+        // BEST METHOD: If we have currentImageSrc, find exact image by src
+        if (context && context.currentImageSrc) {
+          console.log('🎯 Using currentImageSrc to find exact image');
+          const currentSrc = context.currentImageSrc;
+          
+          // Match img tag with this specific src
+          const escapedSrc = currentSrc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const imgWithSrcRegex = new RegExp(`<img([^>]*src=["'])${escapedSrc}(["'][^>]*)>`, 'i');
+          const matchedImg = componentCode.match(imgWithSrcRegex);
+          
+          if (matchedImg) {
+            const targetImg = matchedImg[0];
+            console.log('✅ Found exact image by src URL');
+            const newImg = targetImg.replace(/src="[^"]*"/i, `src="${newImage}"`);
+            modifiedCode = componentCode.replace(targetImg, newImg);
+            replaced = true;
+          } else {
+            console.warn('⚠️ Could not find image with exact src, trying simplified match');
+            // Try simpler pattern - just replace the src value
+            const simpleSrcPattern = new RegExp(`(src=["'])${escapedSrc}(["'])`, 'i');
+            if (simpleSrcPattern.test(componentCode)) {
+              modifiedCode = componentCode.replace(simpleSrcPattern, `$1${newImage}$2`);
+              replaced = true;
+              console.log('✅ Replaced using simplified src pattern');
+            }
+          }
+        }
+        
+        // FALLBACK: Try by data-element-id if currentImageSrc not available
+        if (!replaced && context && context.elementId) {
+          console.log('📸 Trying to find image by element structure');
+          const imgMatches = componentCode.match(/<img[^>]*>/gi) || [];
+          console.log(`📸 Found ${imgMatches.length} images in component`);
+          
+          // Try to find by data-element-id
+          const imgWithIdRegex = new RegExp(`<img[^>]*data-element-id="${context.elementId}"[^>]*>`, 'i');
+          const matchedImg = componentCode.match(imgWithIdRegex);
+          
+          if (matchedImg) {
+            const targetImg = matchedImg[0];
+            const newImg = targetImg.replace(/src="[^"]*"/i, `src="${newImage}"`);
+            modifiedCode = componentCode.replace(targetImg, newImg);
+            replaced = true;
+            console.log('✅ Replaced using data-element-id');
+          } else if (imgMatches.length === 1) {
+            // If only one image, replace it
+            const targetImg = imgMatches[0];
+            const newImg = targetImg.replace(/src="[^"]*"/i, `src="${newImage}"`);
+            modifiedCode = componentCode.replace(targetImg, newImg);
+            replaced = true;
+            console.log('✅ Replaced the only image in component');
+          }
+        }
+        
+        if (!replaced) {
+          console.warn('⚠️ Last resort: Replacing first image');
+          modifiedCode = componentCode.replace(/(<img[^>]*src=")([^"]+)(")/i, `$1${newImage}$3`);
+        }
+        
+        console.log('📤 Returning modified code, length:', modifiedCode.length);
+        return res.json({ code: modifiedCode });
+      }
+      
+      // PRIORITY 2: Handle base64 image upload - Use AI for proper code regeneration
+      if (imageDataUrl && imageDataUrl.startsWith('data:')) {
+        console.log('📷 Base64 image upload detected, length:', imageDataUrl.length);
+        console.log('🤖 Using AI to properly update image in component structure...');
+        
+        // Use AI to handle the replacement - it understands component structure better
+        const modifiedCode = await modifyComponent(componentCode, prompt, context, imageDataUrl);
+        
+        // Sanitize the modified code
+        const { sanitizeGeneratedCode } = await import('./services/code-sanitizer.js');
+        let sanitizedCode = sanitizeGeneratedCode(modifiedCode);
+        
+        // Check if AI returned empty or invalid code
+        if (!sanitizedCode || sanitizedCode.length < 100) {
+          console.error('❌ AI returned empty/invalid code');
+          return res.status(500).json({ error: 'AI modification failed' });
+        }
+        
+        console.log('✅ Image updated with AI, sanitized code length:', sanitizedCode.length);
+        return res.json({ code: sanitizedCode });
+      }
+      
+      // PRIORITY 3: Use AI for other modifications
+      console.log('🤖 Using AI for code modification...');
+      
+      const modifiedCode = await modifyComponent(componentCode, prompt, context, undefined);
+      
+      // Sanitize the modified code
+      const { sanitizeGeneratedCode } = await import('./services/code-sanitizer.js');
+      let sanitizedCode = sanitizeGeneratedCode(modifiedCode);
+      
+      // Check if AI returned empty or invalid code
+      if (!sanitizedCode || sanitizedCode.length < 100) {
+        console.error('❌ AI returned empty/invalid code');
+        return res.status(500).json({ error: 'AI modification failed' });
+      }
+      
+      console.log('✅ Code sanitized, length:', sanitizedCode.length);
+      console.log('✅ Component modification complete');
+      res.json({ code: sanitizedCode });
+  } catch (error) {
+      console.error('❌ Error during modification:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      res.status(500).json({ error: 'Failed to modify code: ' + errorMessage });
+  }
+});
+
+app.post('/regenerate-with-image', upload.single('image'), async (req, res) => {
+  const { currentCode, elementId, imageData, optimize } = req.body;
+  
+  if (!currentCode || !imageData) {
+    return res.status(400).json({ error: 'Current code and image data are required' });
+  }
+
+  try {
+    // Create a prompt to regenerate the component with the new image
+    let prompt = `I have this existing component. I want to replace the image in element with id "${elementId}" with a new image I'm providing. `;
+    
+    if (optimize === 'true') {
+      prompt += `Also, please optimize and enhance the overall design to make it look modern, professional, and visually appealing. Improve spacing, colors, typography, and layout while keeping the core functionality. `;
+    }
+    
+    prompt += `Keep all other elements and functionality exactly the same. The new image data is: ${imageData.substring(0, 100)}... (base64 data URL). Replace the existing image URL with this data URL.`;
+
+    const modifiedCode = await modifyComponent(currentCode, prompt, { preserveStructure: true });
+    
+    console.log('✅ Component regenerated with new image');
+    res.json({ code: modifiedCode });
+  } catch (error) {
+    console.error('❌ Error regenerating with image:', error);
+    res.status(500).json({ error: 'Failed to regenerate component with image' });
+  }
+});
+
+// ============ PHASE 4: AUTHENTICATION ROUTES ============
+app.post('/auth/register', register);
+app.post('/auth/login', login);
+app.get('/auth/profile', verifyToken, getProfile);
+app.put('/auth/profile', verifyToken, updateProfile);
+
+// ============ PHASE 4: PROJECT MANAGEMENT ROUTES ============
+app.get('/projects', verifyToken, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const projects = await Project.find({ owner: req.user._id }).sort({ lastModified: -1 });
+    res.json({ projects });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch projects' });
+  }
+});
+
+app.post('/projects', verifyToken, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const { name, description } = req.body;
+    const project = new Project({
+      name,
+      description,
+      owner: req.user._id,
+    });
+    await project.save();
+    
+    // Add to user's projects
+    req.user.projects.push(project._id.toString());
+    req.user.usageStats.projectsCreated += 1;
+    await req.user.save();
+    
+    res.status(201).json({ project });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create project' });
+  }
+});
+
+app.get('/projects/:id', verifyToken, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const project = await Project.findOne({ _id: req.params.id, owner: req.user._id });
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    res.json({ project });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch project' });
+  }
+});
+
+app.put('/projects/:id', verifyToken, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const project = await Project.findOneAndUpdate(
+      { _id: req.params.id, owner: req.user._id },
+      req.body,
+      { new: true }
+    );
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    res.json({ project });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update project' });
+  }
+});
+
+app.delete('/projects/:id', verifyToken, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const project = await Project.findOneAndDelete({ _id: req.params.id, owner: req.user._id });
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    res.json({ message: 'Project deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete project' });
+  }
+});
+
+// ============ PHASE 4: DATABASE SCHEMA GENERATION ============
+app.post('/generate/database-schema', verifyToken, async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    const result = await generateDatabaseSchema(prompt);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate database schema' });
+  }
+});
+
+// ============ PHASE 4: API ROUTE GENERATION ============
+app.post('/generate/api-routes', verifyToken, async (req, res) => {
+  try {
+    const { model, options } = req.body;
+    const result = await generateAPIRoutes(model, options);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate API routes' });
+  }
+});
+
+// ============ PHASE 4: AUTH SYSTEM GENERATION ============
+app.post('/generate/auth-system', verifyToken, async (req, res) => {
+  try {
+    const { appType } = req.body;
+    const result = await generateAuthSystem(appType);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to generate auth system' });
+  }
+});
+
+// ============ PHASE 4: PROJECT EXPORT ============
+app.post('/projects/:id/export', verifyToken, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const project = await Project.findOne({ _id: req.params.id, owner: req.user._id });
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    
+    const exportedFiles = await exportFullStackProject(project);
+    res.json({ files: exportedFiles });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to export project' });
+  }
+});
+
+// ============ PHASE 4: DEPLOYMENT ============
+app.post('/projects/:id/deploy', verifyToken, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const { platform = 'vercel' } = req.body;
+    const project = await Project.findOne({ _id: req.params.id, owner: req.user._id });
+    
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const deployment = new Deployment({
+      project: project._id,
+      user: req.user._id,
+      platform,
+      status: 'pending',
+    });
+    
+    await deployment.save();
+    
+    // Update project deployment config
+    if (!project.deploymentConfig) {
+      project.deploymentConfig = {
+        url: '',
+        platform: platform as 'vercel' | 'netlify' | 'railway',
+        lastDeployed: new Date(),
+        status: 'pending' as 'pending' | 'deployed' | 'failed',
+      };
+    } else {
+      project.deploymentConfig.platform = platform as 'vercel' | 'netlify' | 'railway';
+      project.deploymentConfig.status = 'pending' as 'pending' | 'deployed' | 'failed';
+    }
+    await project.save();
+    
+    // In production, trigger actual deployment here
+    // For now, return the deployment object
+    res.json({ 
+      message: 'Deployment initiated',
+      deployment,
+      note: 'In production, this would trigger actual deployment to ' + platform
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to deploy project' });
+  }
+});
+
+app.get('/deployments', verifyToken, async (req, res) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    const deployments = await Deployment.find({ user: req.user._id })
+      .populate('project')
+      .sort({ createdAt: -1 });
+    res.json({ deployments });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch deployments' });
+  }
 });
 
 // Server Initialization
 const startServer = async () => {
   try {
-    // Initialize the RAG system but don't block server start if it fails
     await initializeRagSystem();
-
-    app.listen(port, () => {
-      if (getRagStatus()) {
-        console.log(`✅ RAG-enhanced server running on http://localhost:${port}`);
+    app.listen(PORT, () => {
+      console.log(`✅ Server running on http://localhost:${PORT}`);
+      console.log(`📦 Phase 4 Features: Authentication, Projects, Database, API, Deployment`);
+      if (ragSystem.isReady()) {
+        console.log('RAG system is ready.');
       } else {
-        console.log(`⚠️ Server running in fallback mode on http://localhost:${port} (RAG system failed to initialize)`);
+        console.log('RAG system is not ready. Running in fallback mode.');
       }
     });
   } catch (error) {
@@ -69,4 +472,5 @@ const startServer = async () => {
 };
 
 startServer();
+
 

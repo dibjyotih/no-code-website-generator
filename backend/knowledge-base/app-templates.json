@@ -1,0 +1,42 @@
+[
+  {
+    "templateName": "Basic Blog",
+    "description": "A simple blog application with posts, users, and comments. Includes a frontend with Next.js App Router, a backend with Next.js API routes, and a PostgreSQL database schema.",
+    "projectStructure": {
+      "frontend": {
+        "pages": [
+          {
+            "route": "/app/page.tsx",
+            "description": "The main homepage that lists all blog posts.",
+            "code": "import Link from 'next/link';\n\nasync function getPosts() {\n  // In a real app, you'd fetch this from your API\n  return [\n    { id: 1, title: 'Hello Next.js', content: 'This is my first post.' },\n    { id: 2, title: 'Full-Stack Apps', content: 'Generating full-stack apps is fun.' },\n  ];\n}\n\nexport default async function HomePage() {\n  const posts = await getPosts();\n  return (\n    <main className=\"p-8\">\n      <h1 className=\"text-4xl font-bold mb-8\">My Blog</h1>\n      <div className=\"space-y-4\">\n        {posts.map(post => (\n          <Link key={post.id} href={`/posts/${post.id}`}>\n            <a className=\"block p-4 border rounded-lg hover:bg-gray-100\">\n              <h2 className=\"text-2xl font-semibold\">{post.title}</h2>\n            </a>\n          </Link>\n        ))}\n      </div>\n    </main>\n  );\n}"
+          },
+          {
+            "route": "/app/posts/[id]/page.tsx",
+            "description": "A page to display a single blog post.",
+            "code": "async function getPost(id) {\n  // Fetch single post\n  return { id, title: `Post ${id}`, content: `Content for post ${id}` };\n}\n\nexport default async function PostPage({ params }) {\n  const post = await getPost(params.id);\n  return (\n    <article className=\"p-8\">\n      <h1 className=\"text-4xl font-bold mb-4\">{post.title}</h1>\n      <p>{post.content}</p>\n    </article>\n  );\n}"
+          }
+        ]
+      },
+      "backend": {
+        "apiRoutes": [
+          {
+            "endpoint": "/app/api/posts/route.ts",
+            "description": "API route to get all posts (GET) and create a new post (POST).",
+            "code": "import { NextResponse } from 'next/server';\n\nexport async function GET() {\n  // Logic to fetch posts from database\n  const posts = [{ id: 1, title: 'API Post' }];\n  return NextResponse.json(posts);\n}\n\nexport async function POST(request) {\n  const body = await request.json();\n  // Logic to create a new post in the database\n  return NextResponse.json({ message: 'Post created', post: body }, { status: 201 });\n}"
+          },
+          {
+            "endpoint": "/app/api/posts/[id]/route.ts",
+            "description": "API route for a single post (GET, PUT, DELETE).",
+            "code": "import { NextResponse } from 'next/server';\n\nexport async function GET(request, { params }) {\n  const { id } = params;\n  // Logic to get post by id\n  return NextResponse.json({ id, title: `Post ${id}` });\n}\n\nexport async function PUT(request, { params }) {\n  const { id } = params;\n  const body = await request.json();\n  // Logic to update post\n  return NextResponse.json({ message: `Post ${id} updated` });\n}\n\nexport async function DELETE(request, { params }) {\n  const { id } = params;\n  // Logic to delete post\n  return NextResponse.json({ message: `Post ${id} deleted` });\n}"
+          }
+        ],
+        "database": {
+          "schema": "CREATE TABLE users (\n  id SERIAL PRIMARY KEY,\n  username VARCHAR(50) UNIQUE NOT NULL,\n  password_hash VARCHAR(255) NOT NULL,\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE TABLE posts (\n  id SERIAL PRIMARY KEY,\n  user_id INTEGER NOT NULL REFERENCES users(id),\n  title VARCHAR(255) NOT NULL,\n  content TEXT NOT NULL,\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE TABLE comments (\n  id SERIAL PRIMARY KEY,\n  post_id INTEGER NOT NULL REFERENCES posts(id),\n  user_id INTEGER NOT NULL REFERENCES users(id),\n  content TEXT NOT NULL,\n  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP\n);"
+        }
+      },
+      "config": {
+        "packageJson": "{\n  \"name\": \"my-blog-app\",\n  \"dependencies\": {\n    \"next\": \"latest\",\n    \"react\": \"latest\",\n    \"react-dom\": \"latest\",\n    \"pg\": \"latest\"\n  }\n}"
+      }
+    }
+  }
+]

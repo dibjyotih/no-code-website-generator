@@ -30,18 +30,37 @@ const initializeRagSystem = async () => {
     } else {
       console.log('No existing HNSWLib store found. Creating a new one...');
       
-      const filePath = path.join(process.cwd(), 'backend', 'knowledge-base', 'components.json');
-      const componentsJson = await fs.readFile(filePath, 'utf-8');
+      // Load standard components
+      const componentsPath = path.join(process.cwd(), 'backend', 'knowledge-base', 'components.json');
+      const componentsJson = await fs.readFile(componentsPath, 'utf-8');
       const components = JSON.parse(componentsJson);
 
-      const documents = components.map(component => new Document({
-        pageContent: `Component Name: ${component.name}. Category: ${component.category}. Code: ${component.code}`,
-        metadata: { name: component.name, category: component.category },
+      // Load fullstack templates
+      const fullstackPath = path.join(process.cwd(), 'backend', 'knowledge-base', 'fullstack-templates.json');
+      let fullstackTemplates = [];
+      try {
+        const fullstackJson = await fs.readFile(fullstackPath, 'utf-8');
+        fullstackTemplates = JSON.parse(fullstackJson);
+        console.log(`✅ Loaded ${fullstackTemplates.length} fullstack templates`);
+      } catch (err) {
+        console.log('No fullstack templates found, using components only');
+      }
+
+      // Combine all templates
+      const allTemplates = [...components, ...fullstackTemplates];
+
+      const documents = allTemplates.map(component => new Document({
+        pageContent: `Component Name: ${component.name}. Category: ${component.category}. Description: ${component.description || ''}. Keywords: ${component.keywords?.join(', ') || ''}. Code: ${component.code}`,
+        metadata: { 
+          name: component.name, 
+          category: component.category,
+          keywords: component.keywords || []
+        },
       }));
 
       vectorStore = await HNSWLib.fromDocuments(documents, embeddings);
       await vectorStore.save(persistDirectory);
-      console.log('✅ New HNSWLib vector store created and persisted.');
+      console.log(`✅ New HNSWLib vector store created with ${documents.length} templates and persisted.`);
     }
 
     isRagReady = true;
@@ -54,19 +73,28 @@ const initializeRagSystem = async () => {
 };
 
 /**
- * Returns the initialized vector store.
- * @returns {HNSWLib | undefined} The LangChain HNSWLib vector store instance.
+ * Retrieves relevant documents from the vector store.
+ * @param {string} query - The query to search for.
+ * @param {number} k - The number of documents to retrieve.
+ * @returns {Promise<Document[]>} A promise that resolves to an array of documents.
  */
-export const getVectorStore = () => {
-    return vectorStore;
+const retrieve = async (query, k = 5) => {
+  if (!vectorStore) {
+    console.warn('Vector store not initialized. Cannot retrieve documents.');
+    return [];
+  }
+  const retriever = vectorStore.asRetriever(k);
+  return await retriever.getRelevantDocuments(query);
 };
 
 /**
- * Returns whether the RAG system is ready.
- * @returns {boolean}
+ * Returns the initialized vector store.
+ * @returns {HNSWLib | undefined} The LangChain HNSWLib vector store instance.
  */
-export const getRagStatus = () => {
-    return isRagReady;
+export const ragSystem = {
+  isReady: () => isRagReady,
+  getStore: () => vectorStore,
+  retrieve,
 };
 
-export default initializeRagSystem;
+export { initializeRagSystem };
