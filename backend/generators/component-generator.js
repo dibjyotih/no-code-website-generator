@@ -536,14 +536,31 @@ export async function componentGenerator(userPrompt, filePart = null) {
     console.log(sanitizedCode);
     console.log("------------------------------------");
 
-    // 2. Replace placeholder images with generated images
+    // 2. Validate the code structure
+    if (!sanitizedCode || sanitizedCode.length < 50) {
+      throw new Error('Generated code is too short or empty');
+    }
+    
+    if (!sanitizedCode.includes('return') && !sanitizedCode.includes('React.createElement')) {
+      throw new Error('Generated code does not contain a return statement');
+    }
+    
+    // Check for basic React component structure
+    const hasComponent = sanitizedCode.match(/(?:function|const)\s+[A-Z][a-zA-Z0-9]*/);
+    if (!hasComponent) {
+      throw new Error('Generated code does not contain a valid React component');
+    }
+    
+    console.log("✅ Code validation passed");
+
+    // 3. Replace placeholder images with generated images
     const codeWithGeneratedImages = replaceImagesWithGenerated(sanitizedCode, generatedImages);
     
     console.log("✅ Code enhanced with AI-generated images");
     console.log("📄 Final code length:", codeWithGeneratedImages.length);
     console.log("✅ Returning code to frontend...");
 
-    // 3. Return the enhanced code
+    // 4. Return the enhanced code
     return { code: codeWithGeneratedImages, error: null };
 
   } catch (error) {

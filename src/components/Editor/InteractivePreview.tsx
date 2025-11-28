@@ -87,10 +87,16 @@ const InteractivePreview = forwardRef<InteractivePreviewHandle, InteractivePrevi
       let transformedCode = '';
       
       if (code && code.trim()) {
-        const transformed = transform(code, {
-          transforms: ['typescript', 'jsx'],
-          production: true,
-        });
+        let transformed;
+        try {
+          transformed = transform(code, {
+            transforms: ['typescript', 'jsx'],
+            production: true,
+          });
+        } catch (syntaxError) {
+          console.error('Syntax error in generated code:', syntaxError);
+          throw new Error(`Syntax Error: The generated code has invalid syntax. ${syntaxError instanceof Error ? syntaxError.message : 'Please try regenerating the component.'}`);
+        }
 
         // Remove imports but keep the functionality by using globals
         // First, collect all React hooks being imported
@@ -218,17 +224,41 @@ window.GeneratedComponent = function EmptyState() {
       ${transformedCode}
 
       const GeneratedComponent = window.GeneratedComponent;
-      if (GeneratedComponent) {
-        const container = document.getElementById('root');
-        const root = ReactDOM.createRoot(container);
-        root.render(React.createElement(GeneratedComponent));
+      if (!GeneratedComponent) {
+        console.error('GeneratedComponent is not defined');
+        throw new Error('Failed to create component. The generated code may have syntax errors.');
       }
+      
+      const container = document.getElementById('root');
+      if (!container) {
+        throw new Error('Root container not found');
+      }
+      
+      const root = ReactDOM.createRoot(container);
+      root.render(React.createElement(GeneratedComponent));
+      
+      console.log('Component rendered successfully');
     } catch (error) {
       console.error('Preview error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : '';
       document.body.innerHTML = \`
-        <div style="padding: 2rem; color: #EF4444; background: #FEE2E2; border-radius: 8px; margin: 2rem;">
-          <h2 style="font-weight: bold; margin-bottom: 0.5rem;">Preview Error</h2>
-          <pre style="white-space: pre-wrap; font-size: 0.875rem;">\${error.message}</pre>
+        <div style="padding: 2rem; color: #DC2626; background: #FEE2E2; border-radius: 8px; margin: 2rem; font-family: system-ui, -apple-system, sans-serif;">
+          <h2 style="font-weight: bold; margin-bottom: 1rem; font-size: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 2rem;">⚠️</span>
+            Preview Error
+          </h2>
+          <div style="background: white; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+            <strong style="color: #991B1B;">Error:</strong>
+            <pre style="white-space: pre-wrap; font-size: 0.875rem; margin-top: 0.5rem; color: #7F1D1D;">\${errorMessage}</pre>
+          </div>
+          <details style="background: white; padding: 1rem; border-radius: 4px; cursor: pointer;">
+            <summary style="font-weight: 600; color: #991B1B;">Stack Trace</summary>
+            <pre style="white-space: pre-wrap; font-size: 0.75rem; margin-top: 0.5rem; color: #7F1D1D; max-height: 300px; overflow: auto;">\${errorStack || 'No stack trace available'}</pre>
+          </details>
+          <div style="margin-top: 1rem; padding: 1rem; background: #FEF3C7; border-radius: 4px; color: #92400E;">
+            <strong>💡 Tip:</strong> Try regenerating the component or check the browser console for more details.
+          </div>
         </div>
       \`;
     }
@@ -303,6 +333,98 @@ window.GeneratedComponent = function EmptyState() {
       };
     } catch (error) {
       console.error('Error rendering preview:', error);
+      
+      // Display error in iframe
+      if (iframeDoc) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        const errorHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #FEE2E2 0%, #FECACA 100%);
+    }
+    .error-container {
+      max-width: 600px;
+      padding: 2rem;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      margin: 2rem;
+    }
+    .error-icon {
+      font-size: 3rem;
+      text-align: center;
+      margin-bottom: 1rem;
+    }
+    h2 {
+      color: #DC2626;
+      margin: 0 0 1rem 0;
+      font-size: 1.5rem;
+      text-align: center;
+    }
+    .error-message {
+      background: #FEF2F2;
+      padding: 1rem;
+      border-radius: 8px;
+      border-left: 4px solid #DC2626;
+      margin-bottom: 1rem;
+      color: #991B1B;
+      line-height: 1.6;
+    }
+    .suggestions {
+      background: #FEF3C7;
+      padding: 1rem;
+      border-radius: 8px;
+      border-left: 4px solid #F59E0B;
+      color: #92400E;
+    }
+    .suggestions strong {
+      display: block;
+      margin-bottom: 0.5rem;
+    }
+    ul {
+      margin: 0;
+      padding-left: 1.5rem;
+    }
+    li {
+      margin: 0.5rem 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="error-container">
+    <div class="error-icon">⚠️</div>
+    <h2>Preview Error</h2>
+    <div class="error-message">
+      ${errorMessage}
+    </div>
+    <div class="suggestions">
+      <strong>💡 Suggestions:</strong>
+      <ul>
+        <li>Click the "Back" button and try regenerating with a clearer prompt</li>
+        <li>The AI might have generated incomplete or invalid code</li>
+        <li>Try simplifying your request and generate again</li>
+        <li>Check the browser console (F12) for more details</li>
+      </ul>
+    </div>
+  </div>
+</body>
+</html>`;
+        
+        iframeDoc.open();
+        iframeDoc.write(errorHTML);
+        iframeDoc.close();
+      }
     }
   }, [code, onElementSelect]);
 

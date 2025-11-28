@@ -4,22 +4,15 @@ dotenv.config({ path: 'backend/.env' });
 
 import express from 'express';
 import cors from 'cors';
-import mongoose from 'mongoose';
 import { initializeRagSystem, ragSystem } from './rag-system/index.js';
 import { componentGenerator } from './generators/component-generator.js';
 import { reviewCode } from './services/code-validator.js';
 import { modifyComponent } from './services/contextual-modifier.js';
 import { generateImage } from './services/image-generator.js';
-import { register, login, verifyToken, getProfile, updateProfile } from './services/auth.js';
-import { generateDatabaseSchema } from './services/database-generator.js';
-import { generateAPIRoutes, generateAuthSystem } from './services/api-generator.js';
-import { exportFullStackProject } from './services/project-exporter.js';
-import Project from './models/Project.js';
-import User from './models/User.js';
-import Deployment from './models/Deployment.js';
 import multer from 'multer';
 import { performanceMonitor } from './services/performance-monitor.js';
 import { TestRunner } from './test-suite.js';
+import { ProjectWrapper } from './services/project-wrapper.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -30,25 +23,6 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 8000;
 const upload = multer();
-
-// Disable Mongoose buffering to prevent timeout errors when MongoDB is not connected
-mongoose.set('bufferCommands', false);
-mongoose.set('bufferTimeoutMS', 0);
-
-// Connect to MongoDB (optional - app works without database)
-if (process.env.MONGODB_URI) {
-  mongoose.connect(process.env.MONGODB_URI, {
-    serverSelectionTimeoutMS: 5000, // Timeout after 5 seconds instead of 30
-  })
-    .then(() => console.log('✅ Connected to MongoDB'))
-    .catch(err => {
-      console.log('⚠️  MongoDB not available (app will work without persistence)');
-      console.log('   To enable MongoDB: Set MONGODB_URI in backend/.env');
-    });
-} else {
-  console.log('⚠️  MONGODB_URI not set - running without database persistence');
-  console.log('   Data will not be saved across server restarts');
-}
 
 // Middleware
 app.use(cors());
@@ -373,208 +347,47 @@ app.post('/regenerate-with-image', upload.single('image'), async (req, res) => {
   }
 });
 
-// ============ PHASE 4: AUTHENTICATION ROUTES ============
-app.post('/auth/register', register);
-app.post('/auth/login', login);
-app.get('/auth/profile', verifyToken, getProfile);
-app.put('/auth/profile', verifyToken, updateProfile);
-
-// ============ PHASE 4: PROJECT MANAGEMENT ROUTES ============
-app.get('/projects', verifyToken, async (req, res) => {
+// ============ DEPLOYMENT ENDPOINTS ============
+// Export endpoint - generates complete Next.js project bundle
+app.post('/export', async (req, res) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const projects = await Project.find({ owner: req.user._id }).sort({ lastModified: -1 });
-    res.json({ projects });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch projects' });
-  }
-});
+    const { componentCode, projectName } = req.body;
 
-app.post('/projects', verifyToken, async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
+    if (!componentCode) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Component code is required' 
+      });
     }
-    const { name, description } = req.body;
-    const project = new Project({
-      name,
-      description,
-      owner: req.user._id,
+
+    // Generate project name if not provided
+    const finalProjectName = projectName || `webweave-${Date.now()}`;
+
+    // Create complete Next.js project
+    const project = ProjectWrapper.createDeployableProject(componentCode, finalProjectName);
+
+    // Validate project structure
+    if (!ProjectWrapper.validateProject(project)) {
+      throw new Error('Invalid project structure generated');
+    }
+
+    // Calculate project size
+    const sizeKB = ProjectWrapper.estimateSize(project);
+
+    res.json({
+      success: true,
+      project: project,
+      projectName: finalProjectName,
+      filesCount: Object.keys(project).length,
+      sizeKB: sizeKB
     });
-    await project.save();
-    
-    // Add to user's projects
-    req.user.projects.push(project._id.toString());
-    req.user.usageStats.projectsCreated += 1;
-    await req.user.save();
-    
-    res.status(201).json({ project });
+
   } catch (error) {
-    res.status(500).json({ error: 'Failed to create project' });
-  }
-});
-
-app.get('/projects/:id', verifyToken, async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const project = await Project.findOne({ _id: req.params.id, owner: req.user._id });
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-    res.json({ project });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch project' });
-  }
-});
-
-app.put('/projects/:id', verifyToken, async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const project = await Project.findOneAndUpdate(
-      { _id: req.params.id, owner: req.user._id },
-      req.body,
-      { new: true }
-    );
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-    res.json({ project });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to update project' });
-  }
-});
-
-app.delete('/projects/:id', verifyToken, async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const project = await Project.findOneAndDelete({ _id: req.params.id, owner: req.user._id });
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-    res.json({ message: 'Project deleted successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to delete project' });
-  }
-});
-
-// ============ PHASE 4: DATABASE SCHEMA GENERATION ============
-app.post('/generate/database-schema', verifyToken, async (req, res) => {
-  try {
-    const { prompt } = req.body;
-    const result = await generateDatabaseSchema(prompt);
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to generate database schema' });
-  }
-});
-
-// ============ PHASE 4: API ROUTE GENERATION ============
-app.post('/generate/api-routes', verifyToken, async (req, res) => {
-  try {
-    const { model, options } = req.body;
-    const result = await generateAPIRoutes(model, options);
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to generate API routes' });
-  }
-});
-
-// ============ PHASE 4: AUTH SYSTEM GENERATION ============
-app.post('/generate/auth-system', verifyToken, async (req, res) => {
-  try {
-    const { appType } = req.body;
-    const result = await generateAuthSystem(appType);
-    res.json(result);
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to generate auth system' });
-  }
-});
-
-// ============ PHASE 4: PROJECT EXPORT ============
-app.post('/projects/:id/export', verifyToken, async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const project = await Project.findOne({ _id: req.params.id, owner: req.user._id });
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-    
-    const exportedFiles = await exportFullStackProject(project);
-    res.json({ files: exportedFiles });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to export project' });
-  }
-});
-
-// ============ PHASE 4: DEPLOYMENT ============
-app.post('/projects/:id/deploy', verifyToken, async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const { platform = 'vercel' } = req.body;
-    const project = await Project.findOne({ _id: req.params.id, owner: req.user._id });
-    
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
-    }
-
-    const deployment = new Deployment({
-      project: project._id,
-      user: req.user._id,
-      platform,
-      status: 'pending',
+    console.error('❌ Export failed:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Export failed'
     });
-    
-    await deployment.save();
-    
-    // Update project deployment config
-    if (!project.deploymentConfig) {
-      project.deploymentConfig = {
-        url: '',
-        platform: platform as 'vercel' | 'netlify' | 'railway',
-        lastDeployed: new Date(),
-        status: 'pending' as 'pending' | 'deployed' | 'failed',
-      };
-    } else {
-      project.deploymentConfig.platform = platform as 'vercel' | 'netlify' | 'railway';
-      project.deploymentConfig.status = 'pending' as 'pending' | 'deployed' | 'failed';
-    }
-    await project.save();
-    
-    // In production, trigger actual deployment here
-    // For now, return the deployment object
-    res.json({ 
-      message: 'Deployment initiated',
-      deployment,
-      note: 'In production, this would trigger actual deployment to ' + platform
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to deploy project' });
-  }
-});
-
-app.get('/deployments', verifyToken, async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-    const deployments = await Deployment.find({ user: req.user._id })
-      .populate('project')
-      .sort({ createdAt: -1 });
-    res.json({ deployments });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch deployments' });
   }
 });
 
@@ -584,7 +397,7 @@ const startServer = async () => {
     await initializeRagSystem();
     app.listen(PORT, () => {
       console.log(`✅ Server running on http://localhost:${PORT}`);
-      console.log(`📦 Phase 4 Features: Authentication, Projects, Database, API, Deployment`);
+      console.log(`🚀 AI Website Generator Ready`);
       if (ragSystem.isReady()) {
         console.log('RAG system is ready.');
       } else {

@@ -371,17 +371,48 @@ Make sure the component still works properly after deletion.`;
     });
   };
 
-  const handleExport = () => {
-    if (codeContext?.code) {
-      const blob = new Blob([codeContext.code], { type: 'text/javascript' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'component.tsx';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+  const handleExport = async () => {
+    if (!codeContext?.code) {
+      alert('No code to export');
+      return;
+    }
+
+    try {
+      // Call export endpoint to get full Next.js project
+      const response = await fetch('http://localhost:3001/export', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          componentCode: codeContext.code,
+          projectName: `webweave-${Date.now()}`
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Store project data in sessionStorage to avoid URL length limits
+        const projectData = {
+          files: data.project,
+          name: data.projectName
+        };
+        
+        sessionStorage.setItem('exportedProject', JSON.stringify(projectData));
+        
+        // Open deployment guide in new tab with just a flag
+        window.open('/deployment-guide', '_blank');
+      } else {
+        alert('Export failed: ' + data.error);
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export project. Please try again.');
     }
   };
 
