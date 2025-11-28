@@ -18,6 +18,14 @@ import Project from './models/Project.js';
 import User from './models/User.js';
 import Deployment from './models/Deployment.js';
 import multer from 'multer';
+import { performanceMonitor } from './services/performance-monitor.js';
+import { TestRunner } from './test-suite.js';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 8000;
@@ -47,7 +55,88 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// Serve static files from root directory for dashboard
+app.use(express.static(path.join(process.cwd())));
+
+// Track API latency for all requests
+const startTime = Date.now();
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    performanceMonitor.trackAPIRequest(req.path, duration);
+  });
+  next();
+});
+
+// ============ METRICS AND TESTING ENDPOINTS ============
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'dashboard.html'));
+});
+
+app.get('/metrics', (req, res) => {
+  const summary = performanceMonitor.getSummary();
+  summary.system = {
+    uptime: `${Math.floor((Date.now() - startTime) / 1000)}s`,
+    lastUpdate: new Date().toISOString()
+  };
+  res.json({ summary });
+});
+
+app.get('/metrics/detailed', (req, res) => {
+  const metrics = performanceMonitor.getMetrics();
+  res.json({ metrics });
+});
+
+app.post('/metrics/reset', (req, res) => {
+  performanceMonitor.reset();
+  res.json({ message: 'Metrics reset successfully' });
+});
+
+app.get('/test-results', (req, res) => {
+  try {
+    const resultsPath = path.join(process.cwd(), 'backend', 'test-results.json');
+    if (fs.existsSync(resultsPath)) {
+      const results = JSON.parse(fs.readFileSync(resultsPath, 'utf-8'));
+      res.json(results);
+    } else {
+      res.json({ message: 'No test results available. Run tests first.' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to read test results' });
+  }
+});
+
+app.post('/run-tests', async (req, res) => {
+  try {
+    console.log('🧪 Running comprehensive test suite...');
+    const testRunner = new TestRunner();
+    const results = await testRunner.runAllTests();
+    
+    console.log('✅ Test suite completed');
+    const summary = performanceMonitor.getSummary();
+    summary.system = {
+      uptime: `${Math.floor((Date.now() - startTime) / 1000)}s`,
+      lastUpdate: new Date().toISOString()
+    };
+    
+    res.json({ 
+      message: 'Tests completed successfully',
+      summary: {
+        ...results,
+        metrics: summary
+      }
+    });
+  } catch (error) {
+    console.error('❌ Test execution failed:', error);
+    res.status(500).json({ error: 'Failed to run tests' });
+  }
+});
+
+// ============ GENERATION AND MODIFICATION ENDPOINTS ============
+
 app.post('/generate', upload.single('image'), async (req, res) => {
+  const startTime = Date.now();
   const { prompt } = req.body;
   if (!prompt) {
     return res.status(400).json({ error: 'Prompt is required' });
@@ -67,8 +156,26 @@ app.post('/generate', upload.single('image'), async (req, res) => {
 
   if (result.error) {
     console.error("❌ Returning error to frontend:", result.error);
+    performanceMonitor.trackGeneration(Date.now() - startTime, 'unknown', false, false, false, []);
     return res.status(500).json(result.error);
   }
+  
+  // Analyze generated code quality
+  const { CodeAnalyzer } = await import('./services/code-analyzer.js');
+  const analysis = CodeAnalyzer.analyzeCode(result.code);
+  
+  // Determine complexity from prompt length
+  const complexity = prompt.length < 50 ? 'simple' : prompt.length < 150 ? 'medium' : 'complex';
+  
+  // Track generation metrics
+  performanceMonitor.trackGeneration(
+    Date.now() - startTime,
+    complexity,
+    true,
+    analysis.syntaxValid,
+    analysis.functionalComplete,
+    analysis.features
+  );
   
   console.log("✅ Sending successful response to frontend with code length:", result.code?.length);
   res.json({ code: result.code });
@@ -90,6 +197,7 @@ app.post('/review', async (req, res) => {
 });
 
 app.post('/modify', async (req, res) => {
+  const startTime = Date.now();
   const { componentCode, prompt, context, imageDataUrl, imagePrompt } = req.body;
   if (!componentCode || !prompt) {
       return res.status(400).json({ error: 'Component code and prompt are required' });
@@ -169,6 +277,11 @@ app.post('/modify', async (req, res) => {
           modifiedCode = componentCode.replace(/(<img[^>]*src=")([^"]+)(")/i, `$1${newImage}$3`);
         }
         
+        // Track modification
+        const { CodeAnalyzer } = await import('./services/code-analyzer.js');
+        const preservation = CodeAnalyzer.checkModificationPreservation(componentCode, modifiedCode);
+        performanceMonitor.trackModification(preservation.functionalityPreserved, preservation.dataElementIdsPreserved);
+        
         console.log('📤 Returning modified code, length:', modifiedCode.length);
         return res.json({ code: modifiedCode });
       }
@@ -188,8 +301,14 @@ app.post('/modify', async (req, res) => {
         // Check if AI returned empty or invalid code
         if (!sanitizedCode || sanitizedCode.length < 100) {
           console.error('❌ AI returned empty/invalid code');
+          performanceMonitor.trackModification(false, false);
           return res.status(500).json({ error: 'AI modification failed' });
         }
+        
+        // Track modification
+        const { CodeAnalyzer } = await import('./services/code-analyzer.js');
+        const preservation = CodeAnalyzer.checkModificationPreservation(componentCode, sanitizedCode);
+        performanceMonitor.trackModification(preservation.functionalityPreserved, preservation.dataElementIdsPreserved);
         
         console.log('✅ Image updated with AI, sanitized code length:', sanitizedCode.length);
         return res.json({ code: sanitizedCode });
@@ -207,14 +326,21 @@ app.post('/modify', async (req, res) => {
       // Check if AI returned empty or invalid code
       if (!sanitizedCode || sanitizedCode.length < 100) {
         console.error('❌ AI returned empty/invalid code');
+        performanceMonitor.trackModification(false, false);
         return res.status(500).json({ error: 'AI modification failed' });
       }
+      
+      // Track modification
+      const { CodeAnalyzer } = await import('./services/code-analyzer.js');
+      const preservation = CodeAnalyzer.checkModificationPreservation(componentCode, sanitizedCode);
+      performanceMonitor.trackModification(preservation.functionalityPreserved, preservation.dataElementIdsPreserved);
       
       console.log('✅ Code sanitized, length:', sanitizedCode.length);
       console.log('✅ Component modification complete');
       res.json({ code: sanitizedCode });
   } catch (error) {
       console.error('❌ Error during modification:', error);
+      performanceMonitor.trackModification(false, false);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       res.status(500).json({ error: 'Failed to modify code: ' + errorMessage });
   }

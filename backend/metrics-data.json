@@ -1,0 +1,80 @@
+{
+  "generation": {
+    "total": 10,
+    "successful": 10,
+    "failed": 0,
+    "syntaxValid": 10,
+    "functionalComplete": 5,
+    "averageTime": 30.2029,
+    "totalTime": 302.029,
+    "byComplexity": {
+      "simple": {
+        "count": 3,
+        "avgTime": 20.284333333333333,
+        "totalTime": 60.853
+      },
+      "medium": {
+        "count": 3,
+        "avgTime": 19.94066666666667,
+        "totalTime": 59.822
+      },
+      "complex": {
+        "count": 4,
+        "avgTime": 45.338499999999996,
+        "totalTime": 181.35399999999998
+      }
+    }
+  },
+  "rag": {
+    "totalQueries": 5,
+    "averageRetrievalTime": 191.4,
+    "totalRetrievalTime": 957,
+    "averageSimilarityScore": 0.8883482253764583,
+    "totalSimilarityScore": 4.441741126882292
+  },
+  "api": {
+    "totalRequests": 65,
+    "averageLatency": 5006.953846153846,
+    "totalLatency": 325452,
+    "byEndpoint": {
+      "/dashboard.html": {
+        "count": 1,
+        "totalLatency": 29,
+        "averageLatency": 29
+      },
+      "/metrics": {
+        "count": 61,
+        "totalLatency": 168,
+        "averageLatency": 2.7540983606557377
+      },
+      "/favicon.ico": {
+        "count": 2,
+        "totalLatency": 14,
+        "averageLatency": 7
+      },
+      "/run-tests": {
+        "count": 1,
+        "totalLatency": 325241,
+        "averageLatency": 325241
+      }
+    }
+  },
+  "quality": {
+    "syntaxCorrectness": 100,
+    "functionalCompleteness": 50,
+    "ecommerceFeatures": {
+      "total": 4,
+      "withCart": 4,
+      "withPricing": 4,
+      "withPayment": 4
+    },
+    "modifications": {
+      "total": 2,
+      "preservedFunctionality": 2,
+      "preservedIds": 2
+    }
+  },
+  "errors": [],
+  "sessionStart": 1764308435260,
+  "lastUpdate": 1764333814658
+}
