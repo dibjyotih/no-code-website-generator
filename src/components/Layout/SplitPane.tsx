@@ -44,7 +44,7 @@ const SplitPane: React.FC<SplitPaneProps> = ({ children, direction = 'horizontal
     const dragBarPosInPerc = sumOfPreviousSizes;
     const mousePosInPerc = ((clientPos - containerStart) / totalSize) * 100;
     
-    let delta = mousePosInPerc - dragBarPosInPerc;
+    const delta = mousePosInPerc - dragBarPosInPerc;
 
     let prevSize = newSizes[dragIndex.current] + delta;
     let nextSize = newSizes[dragIndex.current + 1] - delta;

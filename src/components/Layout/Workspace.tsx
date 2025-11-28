@@ -180,7 +180,11 @@ const Workspace = ({ onBackToLanding }: { onBackToLanding: () => void }) => {
                       <p className="text-sm text-gray-500 mt-1">Customize your component</p>
                     </div>
                     <div className="flex-grow overflow-y-auto p-6">
-                      <PropertyPanel />
+                      <PropertyPanel 
+                        selectedElement={null}
+                        onApplyChanges={() => {}}
+                        onClose={() => {}}
+                      />
                     </div>
                   </div>
                 )}

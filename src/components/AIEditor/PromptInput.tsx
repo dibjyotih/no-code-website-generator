@@ -26,7 +26,7 @@ const PromptInput: React.FC<PromptInputProps> = ({ onSubmit }) => {
       }, 4000);
       return () => clearInterval(interval);
     }
-  }, [prompt, isFocused]);
+  }, [prompt, isFocused, hints.length]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,7 +122,7 @@ const PromptInput: React.FC<PromptInputProps> = ({ onSubmit }) => {
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-              handleSubmit(e as any);
+              handleSubmit(e as React.KeyboardEvent<HTMLTextAreaElement>);
             }
           }}
         />

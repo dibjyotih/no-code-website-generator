@@ -63,8 +63,8 @@ app.get('/metrics/detailed', (req, res) => {
 });
 
 app.post('/metrics/reset', (req, res) => {
-  performanceMonitor.reset();
-  res.json({ message: 'Metrics reset successfully' });
+  // performanceMonitor.reset(); // Method not implemented yet
+  res.json({ message: 'Metrics reset requested (not implemented)' });
 });
 
 app.get('/test-results', (req, res) => {
@@ -254,7 +254,7 @@ app.post('/modify', async (req, res) => {
         // Track modification
         const { CodeAnalyzer } = await import('./services/code-analyzer.js');
         const preservation = CodeAnalyzer.checkModificationPreservation(componentCode, modifiedCode);
-        performanceMonitor.trackModification(preservation.functionalityPreserved, preservation.dataElementIdsPreserved);
+        performanceMonitor.trackModification(preservation.preservedFunctionality, preservation.preservedIds);
         
         console.log('📤 Returning modified code, length:', modifiedCode.length);
         return res.json({ code: modifiedCode });
@@ -270,7 +270,7 @@ app.post('/modify', async (req, res) => {
         
         // Sanitize the modified code
         const { sanitizeGeneratedCode } = await import('./services/code-sanitizer.js');
-        let sanitizedCode = sanitizeGeneratedCode(modifiedCode);
+        const sanitizedCode = sanitizeGeneratedCode(modifiedCode);
         
         // Check if AI returned empty or invalid code
         if (!sanitizedCode || sanitizedCode.length < 100) {
@@ -282,7 +282,7 @@ app.post('/modify', async (req, res) => {
         // Track modification
         const { CodeAnalyzer } = await import('./services/code-analyzer.js');
         const preservation = CodeAnalyzer.checkModificationPreservation(componentCode, sanitizedCode);
-        performanceMonitor.trackModification(preservation.functionalityPreserved, preservation.dataElementIdsPreserved);
+        performanceMonitor.trackModification(preservation.preservedFunctionality, preservation.preservedIds);
         
         console.log('✅ Image updated with AI, sanitized code length:', sanitizedCode.length);
         return res.json({ code: sanitizedCode });
@@ -293,21 +293,21 @@ app.post('/modify', async (req, res) => {
       
       const modifiedCode = await modifyComponent(componentCode, prompt, context, undefined);
       
-      // Sanitize the modified code
-      const { sanitizeGeneratedCode } = await import('./services/code-sanitizer.js');
-      let sanitizedCode = sanitizeGeneratedCode(modifiedCode);
-      
-      // Check if AI returned empty or invalid code
-      if (!sanitizedCode || sanitizedCode.length < 100) {
-        console.error('❌ AI returned empty/invalid code');
-        performanceMonitor.trackModification(false, false);
-        return res.status(500).json({ error: 'AI modification failed' });
-      }
-      
-      // Track modification
-      const { CodeAnalyzer } = await import('./services/code-analyzer.js');
-      const preservation = CodeAnalyzer.checkModificationPreservation(componentCode, sanitizedCode);
-      performanceMonitor.trackModification(preservation.functionalityPreserved, preservation.dataElementIdsPreserved);
+        // Sanitize the modified code
+        const { sanitizeGeneratedCode } = await import('./services/code-sanitizer.js');
+        const sanitizedCode = sanitizeGeneratedCode(modifiedCode);
+        
+        // Check if AI returned empty or invalid code
+        if (!sanitizedCode || sanitizedCode.length < 100) {
+          console.error('❌ AI returned empty/invalid code');
+          performanceMonitor.trackModification(false, false);
+          return res.status(500).json({ error: 'AI modification failed' });
+        }
+        
+        // Track modification
+        const { CodeAnalyzer } = await import('./services/code-analyzer.js');
+        const preservation = CodeAnalyzer.checkModificationPreservation(componentCode, sanitizedCode);
+        performanceMonitor.trackModification(preservation.preservedFunctionality, preservation.preservedIds);
       
       console.log('✅ Code sanitized, length:', sanitizedCode.length);
       console.log('✅ Component modification complete');

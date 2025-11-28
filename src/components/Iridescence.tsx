@@ -16,7 +16,7 @@ const Iridescence: React.FC<Props> = ({
   mouseReact = true,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -30,7 +30,6 @@ const Iridescence: React.FC<Props> = ({
     canvas.height = height;
 
     let mouseX = 0;
-    let mouseY = 0;
 
     const gradient = ctx.createLinearGradient(0, 0, width, height);
     gradient.addColorStop(0, `rgb(${color[0] * 255}, ${color[1] * 255}, ${color[2] * 255})`);
@@ -66,7 +65,7 @@ const Iridescence: React.FC<Props> = ({
     const handleMouseMove = (e: MouseEvent) => {
       if (mouseReact) {
         mouseX = e.clientX - width / 2;
-        mouseY = e.clientY - height / 2;
+        // mouseY could be used for vertical effects if needed
       }
     };
 
