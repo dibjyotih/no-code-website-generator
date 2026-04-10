@@ -70,11 +70,13 @@ export class CodeAnalyzer {
       const functionMatches = code.match(/(?:function\s+\w+|const\s+\w+\s*=\s*\(.*?\)\s*=>|const\s+\w+\s*=\s*async\s*\(.*?\)\s*=>)/g);
       results.stats.functions = functionMatches ? functionMatches.length : 0;
 
-      // E-commerce feature detection
-      const ecommerceKeywords = ['cart', 'shop', 'product', 'checkout', 'payment', 'buy', 'price'];
-      results.features.isEcommerce = ecommerceKeywords.some(keyword => 
-        code.toLowerCase().includes(keyword)
-      );
+      // E-commerce feature detection (avoid false positives for generic landing/pricing pages)
+      const lowerCode = code.toLowerCase();
+      const hasCartSignal = /\bcart\b|addtocart|removefromcart|setcart\s*\(|cart\./i.test(lowerCode);
+      const hasCheckoutSignal = /checkout|order\s*summary|place\s*order/i.test(lowerCode);
+      const hasPaymentSignal = /payment|upi:\/\/|razorpay|paypal|stripe/i.test(lowerCode);
+      const hasStoreSignal = /(e-?commerce|\bstore\b|\bshop\b)/i.test(lowerCode) && /(product|catalog|inventory)/i.test(lowerCode);
+      results.features.isEcommerce = hasCartSignal || hasCheckoutSignal || hasPaymentSignal || hasStoreSignal;
 
       // Cart functionality
       results.features.hasCart = (
@@ -97,13 +99,13 @@ export class CodeAnalyzer {
       // State management
       results.features.hasStateManagement = (
         results.patterns.hasUseState &&
-        results.stats.stateVariables >= 2
+        results.stats.stateVariables >= 1
       );
 
-      // Event handlers
+      // Event handlers (support both named handlers and inline arrow handlers)
       results.features.hasEventHandlers = (
         /onClick|onChange|onSubmit|onMouseEnter|onMouseLeave/i.test(code) &&
-        /const\s+handle\w+|function\s+handle\w+/.test(code)
+        (/const\s+handle\w+|function\s+handle\w+|=>\s*\{|\([^)]*\)\s*=>/i.test(code))
       );
 
       // Dynamic calculations

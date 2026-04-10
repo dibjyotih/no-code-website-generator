@@ -1,24 +1,38 @@
 {
-  "testRun": "2025-11-28T05:53:39.467Z",
+  "testRun": "2026-04-10T09:08:32.594Z",
   "summary": {
-    "totalTestTime": "325.24s",
-    "timestamp": "2025-11-28T05:59:04.704Z",
+    "totalTestTime": "162.52s",
+    "timestamp": "2026-04-10T09:11:15.116Z",
     "metrics": {
       "generation": {
         "totalGenerated": 10,
         "successRate": "100.00%",
-        "averageTime": "30.20s",
+        "averageTime": "13.89s",
+        "simpleTime": "15.85s",
+        "mediumTime": "13.74s",
+        "complexTime": "12.53s",
         "syntaxCorrectness": "100.00%",
-        "functionalCompleteness": "50.00%"
+        "functionalCompleteness": "80.00%"
+      },
+      "quality": {
+        "precision": "45.36%",
+        "recall": "93.62%",
+        "f1Score": "61.11%",
+        "confusionMatrix": {
+          "tp": 44,
+          "fp": 53,
+          "fn": 3,
+          "tn": 0
+        }
       },
       "rag": {
         "totalQueries": 5,
-        "averageRetrievalTime": "191.40ms",
-        "averageSimilarity": "0.888"
+        "averageRetrievalTime": "700.20ms",
+        "averageSimilarity": "0.885"
       },
       "api": {
-        "totalRequests": 17,
-        "averageLatency": "5.18ms"
+        "totalRequests": 7,
+        "averageLatency": "2.29ms"
       },
       "ecommerce": {
         "total": 4,
@@ -27,8 +41,8 @@
         "paymentIntegration": "100.00%"
       },
       "system": {
-        "uptime": "18m 29s",
-        "lastUpdate": "2025-11-28T05:59:04.685Z"
+        "uptime": "2m 51s",
+        "lastUpdate": "2026-04-10T09:11:05.079Z"
       }
     },
     "comparisonWithManualCoding": {
@@ -37,10 +51,13 @@
     },
     "researchPaperMetrics": {
       "syntaxCorrectness": "100.00%",
-      "functionalCompleteness": "50.00%",
-      "averageGenerationTime": "30.20s",
-      "ragRetrievalTime": "191.40ms",
-      "apiLatency": "5.18ms",
+      "functionalCompleteness": "80.00%",
+      "precision": "45.36%",
+      "recall": "93.62%",
+      "f1Score": "61.11%",
+      "averageGenerationTime": "13.89s",
+      "ragRetrievalTime": "700.20ms",
+      "apiLatency": "2.29ms",
       "ecommerceCartFunctionality": "100.00%",
       "ecommercePricingCalculations": "100.00%",
       "ecommercePaymentIntegration": "100.00%"
@@ -50,7 +67,7 @@
     {
       "prompt": "Create a simple contact form with name, email, and message fields",
       "success": true,
-      "generationTime": 18.66,
+      "generationTime": 14.885,
       "analysis": {
         "syntaxValid": true,
         "functionalComplete": true,
@@ -71,17 +88,17 @@
           "hasInlineStyles": true
         },
         "stats": {
-          "lines": 268,
-          "functions": 6,
+          "lines": 86,
+          "functions": 3,
           "components": 0,
-          "stateVariables": 4
+          "stateVariables": 3
         }
       }
     },
     {
       "prompt": "Build a responsive navigation bar with logo and menu items",
       "success": true,
-      "generationTime": 26.227,
+      "generationTime": 14.356,
       "analysis": {
         "syntaxValid": true,
         "functionalComplete": false,
@@ -97,43 +114,12 @@
         },
         "patterns": {
           "hasUseState": true,
-          "hasUseEffect": true,
+          "hasUseEffect": false,
           "hasDataElementId": true,
           "hasInlineStyles": true
         },
         "stats": {
-          "lines": 162,
-          "functions": 3,
-          "components": 0,
-          "stateVariables": 3
-        }
-      }
-    },
-    {
-      "prompt": "Design a hero section with heading, description, and CTA button",
-      "success": true,
-      "generationTime": 15.966,
-      "analysis": {
-        "syntaxValid": true,
-        "functionalComplete": false,
-        "complexity": "simple",
-        "features": {
-          "isEcommerce": true,
-          "hasCart": false,
-          "hasPricing": false,
-          "hasPayment": false,
-          "hasStateManagement": false,
-          "hasEventHandlers": false,
-          "hasDynamicCalculations": false
-        },
-        "patterns": {
-          "hasUseState": true,
-          "hasUseEffect": false,
-          "hasDataElementId": true,
-          "hasInlineStyles": false
-        },
-        "stats": {
-          "lines": 89,
+          "lines": 127,
           "functions": 1,
           "components": 0,
           "stateVariables": 1
@@ -141,9 +127,40 @@
       }
     },
     {
+      "prompt": "Design a hero section with heading, description, and CTA button",
+      "success": true,
+      "generationTime": 18.297,
+      "analysis": {
+        "syntaxValid": true,
+        "functionalComplete": true,
+        "complexity": "simple",
+        "features": {
+          "isEcommerce": false,
+          "hasCart": false,
+          "hasPricing": false,
+          "hasPayment": false,
+          "hasStateManagement": false,
+          "hasEventHandlers": true,
+          "hasDynamicCalculations": false
+        },
+        "patterns": {
+          "hasUseState": false,
+          "hasUseEffect": false,
+          "hasDataElementId": true,
+          "hasInlineStyles": true
+        },
+        "stats": {
+          "lines": 72,
+          "functions": 1,
+          "components": 0,
+          "stateVariables": 0
+        }
+      }
+    },
+    {
       "prompt": "Create a product card component with image, title, price, and add to cart button",
       "success": true,
-      "generationTime": 17.802,
+      "generationTime": 22.712,
       "analysis": {
         "syntaxValid": true,
         "functionalComplete": false,
@@ -154,17 +171,17 @@
           "hasPricing": false,
           "hasPayment": false,
           "hasStateManagement": false,
-          "hasEventHandlers": false,
+          "hasEventHandlers": true,
           "hasDynamicCalculations": false
         },
         "patterns": {
           "hasUseState": false,
           "hasUseEffect": false,
           "hasDataElementId": true,
-          "hasInlineStyles": false
+          "hasInlineStyles": true
         },
         "stats": {
-          "lines": 137,
+          "lines": 89,
           "functions": 1,
           "components": 0,
           "stateVariables": 0
@@ -174,13 +191,13 @@
     {
       "prompt": "Build a pricing table with 3 tiers and feature comparison",
       "success": true,
-      "generationTime": 25.275,
+      "generationTime": 8.296,
       "analysis": {
         "syntaxValid": true,
-        "functionalComplete": false,
-        "complexity": "medium",
+        "functionalComplete": true,
+        "complexity": "simple",
         "features": {
-          "isEcommerce": true,
+          "isEcommerce": false,
           "hasCart": false,
           "hasPricing": false,
           "hasPayment": false,
@@ -195,28 +212,28 @@
           "hasInlineStyles": true
         },
         "stats": {
-          "lines": 417,
-          "functions": 3,
+          "lines": 118,
+          "functions": 1,
           "components": 0,
-          "stateVariables": 2
+          "stateVariables": 1
         }
       }
     },
     {
       "prompt": "Design a testimonial section with customer reviews and ratings",
       "success": true,
-      "generationTime": 16.745,
+      "generationTime": 10.226,
       "analysis": {
         "syntaxValid": true,
-        "functionalComplete": false,
+        "functionalComplete": true,
         "complexity": "simple",
         "features": {
-          "isEcommerce": true,
+          "isEcommerce": false,
           "hasCart": false,
           "hasPricing": false,
           "hasPayment": false,
           "hasStateManagement": true,
-          "hasEventHandlers": false,
+          "hasEventHandlers": true,
           "hasDynamicCalculations": false
         },
         "patterns": {
@@ -226,21 +243,21 @@
           "hasInlineStyles": true
         },
         "stats": {
-          "lines": 196,
-          "functions": 2,
+          "lines": 101,
+          "functions": 1,
           "components": 0,
-          "stateVariables": 2
+          "stateVariables": 1
         }
       }
     },
     {
       "prompt": "Create a complete e-commerce store with product listing, shopping cart, checkout, and payment integration",
       "success": true,
-      "generationTime": 43.02,
+      "generationTime": 12.078,
       "analysis": {
         "syntaxValid": true,
         "functionalComplete": true,
-        "complexity": "medium",
+        "complexity": "simple",
         "features": {
           "isEcommerce": true,
           "hasCart": true,
@@ -257,7 +274,7 @@
           "hasInlineStyles": true
         },
         "stats": {
-          "lines": 627,
+          "lines": 103,
           "functions": 5,
           "components": 0,
           "stateVariables": 6
@@ -267,11 +284,11 @@
     {
       "prompt": "Build an online shopping cart with add/remove items, quantity adjustment, price calculation, and UPI payment",
       "success": true,
-      "generationTime": 40.545,
+      "generationTime": 11.424,
       "analysis": {
         "syntaxValid": true,
         "functionalComplete": true,
-        "complexity": "medium",
+        "complexity": "simple",
         "features": {
           "isEcommerce": true,
           "hasCart": true,
@@ -288,52 +305,21 @@
           "hasInlineStyles": true
         },
         "stats": {
-          "lines": 651,
+          "lines": 103,
           "functions": 5,
           "components": 0,
-          "stateVariables": 7
+          "stateVariables": 5
         }
       }
     },
     {
       "prompt": "Design a product marketplace with search, filters, cart functionality, and checkout flow",
       "success": true,
-      "generationTime": 56.147,
+      "generationTime": 13.22,
       "analysis": {
         "syntaxValid": true,
         "functionalComplete": true,
-        "complexity": "medium",
-        "features": {
-          "isEcommerce": true,
-          "hasCart": true,
-          "hasPricing": true,
-          "hasPayment": true,
-          "hasStateManagement": true,
-          "hasEventHandlers": true,
-          "hasDynamicCalculations": true
-        },
-        "patterns": {
-          "hasUseState": true,
-          "hasUseEffect": true,
-          "hasDataElementId": true,
-          "hasInlineStyles": true
-        },
-        "stats": {
-          "lines": 726,
-          "functions": 6,
-          "components": 0,
-          "stateVariables": 8
-        }
-      }
-    },
-    {
-      "prompt": "Create an electronics store with product categories, shopping cart, price calculations, and payment methods",
-      "success": true,
-      "generationTime": 41.642,
-      "analysis": {
-        "syntaxValid": true,
-        "functionalComplete": true,
-        "complexity": "medium",
+        "complexity": "simple",
         "features": {
           "isEcommerce": true,
           "hasCart": true,
@@ -350,38 +336,79 @@
           "hasInlineStyles": true
         },
         "stats": {
-          "lines": 552,
-          "functions": 5,
+          "lines": 115,
+          "functions": 4,
           "components": 0,
           "stateVariables": 6
+        }
+      }
+    },
+    {
+      "prompt": "Create an electronics store with product categories, shopping cart, price calculations, and payment methods",
+      "success": true,
+      "generationTime": 13.406,
+      "analysis": {
+        "syntaxValid": true,
+        "functionalComplete": true,
+        "complexity": "simple",
+        "features": {
+          "isEcommerce": true,
+          "hasCart": true,
+          "hasPricing": true,
+          "hasPayment": true,
+          "hasStateManagement": true,
+          "hasEventHandlers": true,
+          "hasDynamicCalculations": true
+        },
+        "patterns": {
+          "hasUseState": true,
+          "hasUseEffect": false,
+          "hasDataElementId": true,
+          "hasInlineStyles": true
+        },
+        "stats": {
+          "lines": 110,
+          "functions": 5,
+          "components": 0,
+          "stateVariables": 5
         }
       }
     }
   ],
   "rag": {
-    "averageRetrievalTime": 191.4,
-    "averageSimilarityScore": 0.8883482253764583,
+    "averageRetrievalTime": 700.2,
+    "averageSimilarityScore": 0.8846418524422358,
     "totalQueries": 5
   },
   "generation": {
     "totalTests": 10,
     "successful": 10,
+    "quotaSkipped": 0,
     "successRate": "100.00",
-    "averageTime": "30.20",
+    "averageTime": "13.89",
     "syntaxCorrectness": "100.00",
-    "functionalCompleteness": "50.00",
+    "functionalCompleteness": "80.00",
+    "precision": "45.36",
+    "recall": "93.62",
+    "f1Score": "61.11",
+    "confusionMatrix": {
+      "tp": 44,
+      "fp": 53,
+      "fn": 3,
+      "tn": 0
+    },
     "complexityStats": {
       "simple": {
         "count": 3,
-        "totalTime": 60.853
+        "totalTime": 47.538
       },
       "medium": {
         "count": 3,
-        "totalTime": 59.822
+        "totalTime": 41.234
       },
       "complex": {
         "count": 4,
-        "totalTime": 181.35399999999998
+        "totalTime": 50.128
       }
     },
     "ecommerceStats": {
@@ -396,8 +423,8 @@
     "idPreservationRate": "100.00"
   },
   "performance": {
-    "concurrentRequests": 10,
-    "totalTime": 14747,
-    "averageLatency": "1474.70"
+    "concurrentRequests": 2,
+    "totalTime": 10033,
+    "averageLatency": "5016.50"
   }
 }

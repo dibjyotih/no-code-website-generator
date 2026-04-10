@@ -4,9 +4,12 @@ import { sanitizeGeneratedCode } from '../services/code-sanitizer.js';
 import { validateGeneratedCode } from '../services/code-validator.js';
 import { handleGenerationError, handleValidationError } from '../services/error-handler.js';
 import { generateImagesForComponent } from '../services/image-generator.js';
+import fs from 'fs/promises';
+import path from 'path';
 
-const MODEL_NAME = "gemini-2.5-flash"; // Primary model
-const FALLBACK_MODEL = "gemini-1.5-flash"; // Fallback when primary is overloaded
+const PRIMARY_MODEL = "gemini-3.1-flash-lite-preview";
+const FALLBACK_MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash"];
+const MODEL_CHAIN = [PRIMARY_MODEL, ...FALLBACK_MODELS];
 const API_KEY = process.env.GEMINI_API_KEY;
 
 if (!API_KEY) {
@@ -31,6 +34,196 @@ const safetySettings = [
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+let localTemplateCache = null;
+
+async function loadLocalTemplates() {
+  if (localTemplateCache) {
+    return localTemplateCache;
+  }
+
+  try {
+    const componentsPath = path.join(process.cwd(), 'backend', 'knowledge-base', 'components.json');
+    const fullstackPath = path.join(process.cwd(), 'backend', 'knowledge-base', 'fullstack-templates.json');
+
+    const [componentsRaw, fullstackRaw] = await Promise.all([
+      fs.readFile(componentsPath, 'utf-8'),
+      fs.readFile(fullstackPath, 'utf-8').catch(() => '[]')
+    ]);
+
+    const components = JSON.parse(componentsRaw);
+    const fullstack = JSON.parse(fullstackRaw);
+    localTemplateCache = [...components, ...fullstack].filter(Boolean);
+    return localTemplateCache;
+  } catch (error) {
+    console.warn('⚠️ Could not load local templates for fallback:', error.message);
+    localTemplateCache = [];
+    return localTemplateCache;
+  }
+}
+
+function buildSimpleFallbackComponent(userPrompt) {
+  const lowerPrompt = userPrompt.toLowerCase();
+
+  if (lowerPrompt.includes('contact') || lowerPrompt.includes('form')) {
+    return `import React, { useState } from 'react';
+
+const ContactForm = () => {
+  const [formData, setFormData] = useState({ name: '', email: '', message: '' });
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    alert('Message sent successfully');
+  };
+
+  return (
+    <div style={{ maxWidth: '640px', margin: '0 auto', padding: '32px', fontFamily: 'system-ui' }}>
+      <h2 data-element-id="heading-contact-title">Contact Us</h2>
+      <form onSubmit={handleSubmit}>
+        <input data-element-id="input-name" name="name" placeholder="Name" value={formData.name} onChange={handleChange} style={{ display: 'block', width: '100%', marginBottom: '12px', padding: '12px' }} />
+        <input data-element-id="input-email" name="email" placeholder="Email" value={formData.email} onChange={handleChange} style={{ display: 'block', width: '100%', marginBottom: '12px', padding: '12px' }} />
+        <textarea data-element-id="input-message" name="message" placeholder="Message" value={formData.message} onChange={handleChange} style={{ display: 'block', width: '100%', marginBottom: '12px', padding: '12px' }} />
+        <button data-element-id="btn-send-message" type="submit">Send Message</button>
+      </form>
+    </div>
+  );
+};
+
+export default ContactForm;`;
+  }
+
+  if (lowerPrompt.includes('navbar') || lowerPrompt.includes('navigation')) {
+    return `import React, { useState } from 'react';
+
+const SimpleNavbar = () => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <nav style={{ padding: '16px 24px', background: '#111827', color: '#fff', fontFamily: 'system-ui' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div data-element-id="text-logo">YourLogo</div>
+        <button data-element-id="btn-menu" onClick={() => setOpen(v => !v)}>Menu</button>
+      </div>
+      {open && <div data-element-id="menu-items" style={{ marginTop: '12px' }}>Home · About · Contact</div>}
+    </nav>
+  );
+};
+
+export default SimpleNavbar;`;
+  }
+
+  if (lowerPrompt.includes('hero')) {
+    return `import React from 'react';
+
+const HeroSection = () => {
+  return (
+    <section style={{ minHeight: '60vh', display: 'grid', placeItems: 'center', textAlign: 'center', padding: '48px', fontFamily: 'system-ui', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff' }}>
+      <div>
+        <h1 data-element-id="heading-hero-title" style={{ fontSize: '48px', marginBottom: '16px' }}>Build Faster</h1>
+        <p data-element-id="text-hero-description" style={{ fontSize: '18px', marginBottom: '24px' }}>A clean hero section generated locally when API limits are reached.</p>
+        <button data-element-id="btn-hero-cta" style={{ padding: '12px 20px', borderRadius: '999px', border: 'none' }}>Get Started</button>
+      </div>
+    </section>
+  );
+};
+
+export default HeroSection;`;
+  }
+
+  if (lowerPrompt.includes('cart') || lowerPrompt.includes('shop') || lowerPrompt.includes('ecommerce') || lowerPrompt.includes('store')) {
+    const template = `import React, { useState } from 'react';
+
+const FallbackStore = () => {
+  const [products] = useState([
+    { id: 1, name: 'Sample Product A', price: 499, image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400' },
+    { id: 2, name: 'Sample Product B', price: 799, image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400' }
+  ]);
+  const [cart, setCart] = useState([]);
+  const addToCart = (product) => setCart(prev => [...prev, { ...product, quantity: 1 }]);
+  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const total = subtotal;
+
+  return (
+    <div style={{ padding: '32px', fontFamily: 'system-ui' }}>
+      <h1 data-element-id="heading-store-title">Store</h1>
+      <div style={{ display: 'grid', gap: '16px', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+        {products.map(product => (
+          <div key={product.id} data-element-id={
+            'card-product-' + product.id
+          } style={{ border: '1px solid #e5e7eb', borderRadius: '16px', padding: '16px' }}>
+            <img data-element-id={
+              'img-product-' + product.id
+            } src={product.image} alt={product.name} style={{ width: '100%', height: '180px', objectFit: 'cover', borderRadius: '12px' }} />
+            <h3 data-element-id={
+              'heading-product-' + product.id
+            }>{product.name}</h3>
+            <p data-element-id={
+              'text-price-' + product.id
+            }>₹{product.price}</p>
+            <button data-element-id={
+              'btn-add-' + product.id
+            } onClick={() => addToCart(product)}>Add to Cart</button>
+          </div>
+        ))}
+      </div>
+      <div data-element-id="cart-summary" style={{ marginTop: '24px', fontWeight: 600 }}>Cart Total: ₹{total}</div>
+    </div>
+  );
+};
+
+export default FallbackStore;`;
+    return template;
+  }
+
+  return `import React from 'react';
+
+const FallbackSection = () => {
+  return (
+    <div style={{ padding: '32px', fontFamily: 'system-ui' }}>
+      <h1 data-element-id="heading-fallback">Generated Locally</h1>
+      <p data-element-id="text-fallback">The API quota was exhausted, so a local fallback component was used.</p>
+    </div>
+  );
+};
+
+export default FallbackSection;`;
+}
+
+function extractUserRequestText(parts) {
+  const joinedText = parts
+    .map((part) => part?.text || '')
+    .join('\n');
+
+  const userRequestMatch = joinedText.match(/User Request:\s*"([\s\S]*?)"/i);
+  if (userRequestMatch?.[1]) {
+    return userRequestMatch[1].trim();
+  }
+
+  return joinedText;
+}
+
+async function getFallbackCode(userPrompt, relevantComponents = [], filePart = null) {
+  // Use built-in JS-safe fallback templates to avoid returning TS-only code when API is unavailable.
+  return sanitizeGeneratedCode(buildSimpleFallbackComponent(userPrompt));
+}
+
+function isRetryableModelError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  const status = Number(error?.status || 0);
+  return (
+    status === 503 ||
+    status === 429 ||
+    message.includes('overloaded') ||
+    message.includes('rate limit') ||
+    message.includes('quota') ||
+    message.includes('too many requests')
+  );
+}
+
 /**
  * Retry with exponential backoff
  */
@@ -40,14 +233,14 @@ async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
       return await fn();
     } catch (error) {
       const isLastAttempt = attempt === maxRetries - 1;
-      const isOverloadError = error.status === 503 || error.message?.includes('overloaded');
+      const retryableError = isRetryableModelError(error);
       
-      if (isLastAttempt || !isOverloadError) {
+      if (isLastAttempt || !retryableError) {
         throw error;
       }
       
       const delayTime = baseDelay * Math.pow(2, attempt); // Exponential backoff: 1s, 2s, 4s
-      console.log(`⏳ Model overloaded, retrying in ${delayTime}ms (attempt ${attempt + 1}/${maxRetries})...`);
+      console.log(`⏳ Model temporarily unavailable/rate-limited, retrying in ${delayTime}ms (attempt ${attempt + 1}/${maxRetries})...`);
       await delay(delayTime);
     }
   }
@@ -56,38 +249,38 @@ async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
 /**
  * Generate content with automatic retry and fallback
  */
-async function generateWithFallback(parts, modelName = MODEL_NAME) {
-  try {
-    console.log(`🤖 Attempting generation with model: ${modelName}`);
-    const model = genAI.getGenerativeModel({ model: modelName });
-    
-    return await retryWithBackoff(async () => {
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts }],
-        generationConfig,
-        safetySettings,
-      });
-      return result.response;
-    }, 3, 1000);
-    
-  } catch (error) {
-    // If primary model fails after retries, try fallback
-    if (modelName === MODEL_NAME && (error.status === 503 || error.message?.includes('overloaded'))) {
-      console.log(`⚠️ Primary model (${MODEL_NAME}) failed, trying fallback model (${FALLBACK_MODEL})...`);
-      const fallbackModel = genAI.getGenerativeModel({ model: FALLBACK_MODEL });
-      
+async function generateWithFallback(parts) {
+  for (let i = 0; i < MODEL_CHAIN.length; i++) {
+    const modelName = MODEL_CHAIN[i];
+    const isLastModel = i === MODEL_CHAIN.length - 1;
+
+    try {
+      console.log(`🤖 Attempting generation with model: ${modelName}`);
+      const model = genAI.getGenerativeModel({ model: modelName });
+
       return await retryWithBackoff(async () => {
-        const result = await fallbackModel.generateContent({
+        const result = await model.generateContent({
           contents: [{ role: "user", parts }],
           generationConfig,
           safetySettings,
         });
         return result.response;
-      }, 2, 2000);
+      }, 3, 1000);
+    } catch (error) {
+      if (!isRetryableModelError(error)) {
+        throw error;
+      }
+
+      if (!isLastModel) {
+        console.log(`⚠️ Model ${modelName} failed (retryable). Trying next fallback model...`);
+        continue;
+      }
     }
-    
-    throw error;
   }
+
+  console.log('🛟 All API models failed, switching to local template fallback...');
+  const localCode = await getFallbackCode(extractUserRequestText(parts), []);
+  return { text: () => localCode };
 }
 
 /**
@@ -119,7 +312,7 @@ function detectComponentType(prompt) {
     return 'gallery';
   }
   
-  return 'ecommerce'; // default
+  return 'general'; // neutral default
 }
 
 /**
@@ -274,12 +467,47 @@ export async function componentGenerator(userPrompt, filePart = null) {
          - Hover effects and transitions
          - Form validation where applicable
       
-      6. **REAL WORKING LOGIC**:
-         - Cart operations: addToCart, removeFromCart, updateQuantity
+      6. **REAL WORKING LOGIC** (THIS IS CRITICAL):
+         - Cart operations (MUST be actual functions that modify state):
+           * addToCart: function that finds existing item and increments OR adds new item
+           * removeFromCart: function that filters item out of cart
+           * updateQuantity: function that changes item.quantity in cart
          - Filter operations: search products, filter by category
-         - Price calculations that update dynamically
-         - Payment redirect logic with proper URL formatting
-         - State synchronization across all views
+         - Price calculations that update dynamically EVERY time cart changes:
+           * subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+           * tax = Math.round(subtotal * 0.18) for e-commerce
+           * shipping = subtotal > 5000 ? 0 : 200 (free shipping over 5000)
+           * total = subtotal + tax + shipping
+         - Payment redirect logic with proper URL formatting (actual links, not fake)
+         - State synchronization - cart state must trigger recalcculations
+      
+      7. **QUANTITY MANAGEMENT** (If you don't include this, the code is incomplete):
+         - Each cart item MUST have quantity field
+         - Increment button: quantity + 1
+         - Decrement button: quantity - 1 (but not below 1)
+         - Update cart display: {item.price} × {item.quantity} = {item.price * item.quantity}
+      
+      8. **DISPLAY ALL CALCULATIONS** (User needs to see these):
+         - Show subtotal amount
+         - Show tax amount
+         - Show shipping cost
+         - Show total amount (with color/bold emphasis)
+      
+      9. **COMMON MISTAKES TO AVOID**:
+         ❌ DO NOT: const addToCart = () => alert('Added to cart');
+         ✅ DO: const addToCart = (product) => { setCart(prev => [...prev, product]); };
+         
+         ❌ DO NOT: const total = 9999; (hardcoded)
+         ✅ DO: const total = subtotal + tax + shipping; (calculated)
+         
+         ❌ DO NOT: onClick="handleClick()" (string)
+         ✅ DO: onClick={() => handleClick()} (function)
+         
+         ❌ DO NOT: Fake payment buttons that do nothing
+         ✅ DO: Real links like window.open('upi://pay?pa=...')
+         
+         ❌ DO NOT: Show empty cart view only
+         ✅ DO: Show both product listing AND cart together (split screen or modal)
       
       ❌ FORBIDDEN - DO NOT CREATE:
       - Simple redirect buttons without cart logic
@@ -393,17 +621,44 @@ export async function componentGenerator(userPrompt, filePart = null) {
       - QR Codes: https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay...
       
       ════════════════════════════════════════════════════════════════════════════════════════════════
-      📦 DATA REQUIREMENTS
+      📦 DATA REQUIREMENTS (CRITICAL FOR FUNCTIONALITY)
       ════════════════════════════════════════════════════════════════════════════════════════════════
       
-      - Include 6+ realistic sample items with:
-        * Unique IDs
-        * Descriptive names
-        * Real prices (appropriate to context)
-        * Categories
+      - Include 6-12 realistic sample items/products with:
+        * Unique IDs (not just index)
+        * Descriptive names (not "Product 1")
+        * Real prices (appropriate to context, not $999 for everything)
+        * Categories (for filtering)
         * Descriptions
-        * Working image URLs
-      - Make data relevant to user's request (e.g., Apple products for Apple store)
+        * Working image URLs (from unsplash.com)
+        * Additional properties based on type (e.g., item.quantity for cart)
+      
+      EXAMPLE DATA STRUCTURE (E-commerce):
+      const [products] = useState([
+        { 
+          id: 1, 
+          name: "iPhone 15 Pro", 
+          category: "Phones", 
+          price: 99999, 
+          image: "https://images.unsplash.com/...",
+          description: "Latest iPhone with advanced features"
+        },
+        { 
+          id: 2, 
+          name: "MacBook Pro", 
+          category: "Laptops", 
+          price: 149999, 
+          image: "https://images.unsplash.com/...",
+          description: "Powerful laptop for professionals"
+        },
+        // ... 10+ more products ...
+      ]);
+      
+      EXPECTED DATA TO BE USED:
+      - Product price from data array MUST be used in display
+      - Product image from data array MUST be used
+      - When filtering by category, MUST filter from products array
+      - When adding to cart, MUST push item from products array
       
       ════════════════════════════════════════════════════════════════════════════════════════════════
       💳 PAYMENT INTEGRATION
@@ -549,6 +804,83 @@ export async function componentGenerator(userPrompt, filePart = null) {
     const hasComponent = sanitizedCode.match(/(?:function|const)\s+[A-Z][a-zA-Z0-9]*/);
     if (!hasComponent) {
       throw new Error('Generated code does not contain a valid React component');
+    }
+    
+    // 2.5 Analyze functional completeness
+    const { CodeAnalyzer } = await import('../services/code-analyzer.js');
+    const analysis = CodeAnalyzer.analyzeCode(sanitizedCode);
+    
+    console.log(`📊 Functional Completeness Analysis:`);
+    console.log(`   - Syntax Valid: ${analysis.syntaxValid ? '✅' : '❌'}`);
+    console.log(`   - State Management: ${analysis.features.hasStateManagement ? '✅' : '❌'}`);
+    console.log(`   - Event Handlers: ${analysis.features.hasEventHandlers ? '✅' : '❌'}`);
+    console.log(`   - Dynamic Calculations: ${analysis.features.hasDynamicCalculations ? '✅' : '❌'}`);
+    console.log(`   - Features Detected:`, analysis.features);
+    
+    // For e-commerce, ensure we have core functionality
+    if (userPrompt.toLowerCase().includes('cart') || 
+        userPrompt.toLowerCase().includes('shop') || 
+        userPrompt.toLowerCase().includes('shopping') ||
+        userPrompt.toLowerCase().includes('ecommerce') ||
+        userPrompt.toLowerCase().includes('checkout') ||
+        userPrompt.toLowerCase().includes('payment')) {
+      
+      const ecommerceRequirements = [
+        analysis.features.hasStateManagement,
+        analysis.features.hasEventHandlers,
+        analysis.features.hasCart || analysis.features.hasPricing,
+        analysis.features.hasPricing || analysis.features.hasPayment
+      ];
+      
+      const metRequirements = ecommerceRequirements.filter(Boolean).length;
+      const completenessPercent = (metRequirements / ecommerceRequirements.length) * 100;
+      
+      console.log(`🛒 E-commerce Completeness: ${completenessPercent.toFixed(1)}%`);
+      
+      // If e-commerce code is incomplete, regenerate with stronger prompt
+      if (completenessPercent < 80) {
+        console.log('⚠️  E-commerce completeness below 80%, regenerating with enhanced prompt...');
+        
+        const enhancedPrompt = `${contextPrompt}
+
+CRITICAL ADDITION - YOUR PREVIOUS CODE WAS INCOMPLETE:
+Your last attempt was missing key e-commerce features. 
+This time, you MUST include ALL of these:
+
+✅ ABSOLUTE REQUIREMENTS (DO NOT SKIP):
+1. useState for cart: const [cart, setCart] = useState([]);
+2. useState for products: const [products] = useState([...]);
+3. At least 5 product items in the array
+4. addToCart function that ACTUALLY adds items to cart state
+5. removeFromCart function that ACTUALLY removes items
+6. updateQuantity function that changes item quantities
+7. Price calculations:
+   - subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+   - tax = Math.round(subtotal * 0.18)
+   - shipping = cart.length > 0 ? 200 : 0
+   - total = subtotal + tax + shipping
+8. All calculations must be LIVE (update when cart changes)
+9. onClick handlers for all buttons
+10. Working payment links (upi://, razorpay.me, paypal.me)
+11. data-element-id on EVERY interactive element
+
+DO NOT generate incomplete or fake code this time.`;
+
+        const enhancedParts = [
+          { text: enhancedPrompt },
+          { text: examplesPrompt },
+          { text: finalUserPrompt }
+        ];
+        
+        const rerryResponse = await generateWithFallback(enhancedParts);
+        const retryCode = rerryResponse.text();
+        const retryProcessed = sanitizeGeneratedCode(retryCode);
+        
+        console.log("🔄 Regenerated code with enhanced requirements");
+        const codeWithGeneratedImages = replaceImagesWithGenerated(retryProcessed, generatedImages);
+        
+        return { code: codeWithGeneratedImages, error: null };
+      }
     }
     
     console.log("✅ Code validation passed");

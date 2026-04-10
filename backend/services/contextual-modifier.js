@@ -1,7 +1,8 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 
-const MODEL_NAME = "gemini-2.5-flash";
-const FALLBACK_MODEL = "gemini-1.5-flash";
+const PRIMARY_MODEL = "gemini-3.1-flash-lite-preview";
+const FALLBACK_MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash"];
+const MODEL_CHAIN = [PRIMARY_MODEL, ...FALLBACK_MODELS];
 const API_KEY = process.env.GEMINI_API_KEY;
 
 if (!API_KEY) {
@@ -25,6 +26,45 @@ const safetySettings = [
 ];
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+let fallbackContext = {
+  componentCode: '',
+  userPrompt: ''
+};
+
+function applyLocalModificationFallback(componentCode, userPrompt) {
+  const lowerPrompt = userPrompt.toLowerCase();
+
+  // Simple no-API fallback: preserve the existing code if the API is unavailable.
+  // This avoids failing the user flow when both Gemini models are rate-limited.
+  if (lowerPrompt.includes('change the button text to')) {
+    const match = userPrompt.match(/change the button text to ['\"]([^'\"]+)['\"]/i);
+    if (match) {
+      return componentCode.replace(/(>)([^<]{1,80})(<\/button>)/i, `$1${match[1]}$3`);
+    }
+  }
+
+  if (lowerPrompt.includes('change the heading text to')) {
+    const match = userPrompt.match(/change the heading text to ['\"]([^'\"]+)['\"]/i);
+    if (match) {
+      return componentCode.replace(/(<h[1-6][^>]*>)([^<]{1,120})(<\/h[1-6]>)/i, `$1${match[1]}$3`);
+    }
+  }
+
+  return componentCode;
+}
+
+function isRetryableModelError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  const status = Number(error?.status || 0);
+  return (
+    status === 503 ||
+    status === 429 ||
+    message.includes('overloaded') ||
+    message.includes('rate limit') ||
+    message.includes('quota') ||
+    message.includes('too many requests')
+  );
+}
 
 /**
  * Retry with exponential backoff
@@ -35,14 +75,14 @@ async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
       return await fn();
     } catch (error) {
       const isLastAttempt = attempt === maxRetries - 1;
-      const isOverloadError = error.status === 503 || error.message?.includes('overloaded');
+      const retryableError = isRetryableModelError(error);
       
-      if (isLastAttempt || !isOverloadError) {
+      if (isLastAttempt || !retryableError) {
         throw error;
       }
       
       const delayTime = baseDelay * Math.pow(2, attempt);
-      console.log(`⏳ Model overloaded, retrying in ${delayTime}ms (attempt ${attempt + 1}/${maxRetries})...`);
+      console.log(`⏳ Model temporarily unavailable/rate-limited, retrying in ${delayTime}ms (attempt ${attempt + 1}/${maxRetries})...`);
       await delay(delayTime);
     }
   }
@@ -51,37 +91,37 @@ async function retryWithBackoff(fn, maxRetries = 3, baseDelay = 1000) {
 /**
  * Generate content with automatic retry and fallback
  */
-async function generateWithFallback(systemPrompt, modelName = MODEL_NAME) {
-  try {
-    console.log(`🤖 Attempting modification with model: ${modelName}`);
-    const model = genAI.getGenerativeModel({ model: modelName });
-    
-    return await retryWithBackoff(async () => {
-      const result = await model.generateContent({
-        contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
-        generationConfig,
-        safetySettings,
-      });
-      return result.response;
-    }, 3, 1000);
-    
-  } catch (error) {
-    if (modelName === MODEL_NAME && (error.status === 503 || error.message?.includes('overloaded'))) {
-      console.log(`⚠️ Primary model failed, trying fallback model (${FALLBACK_MODEL})...`);
-      const fallbackModel = genAI.getGenerativeModel({ model: FALLBACK_MODEL });
-      
+async function generateWithFallback(systemPrompt) {
+  for (let i = 0; i < MODEL_CHAIN.length; i++) {
+    const modelName = MODEL_CHAIN[i];
+    const isLastModel = i === MODEL_CHAIN.length - 1;
+
+    try {
+      console.log(`🤖 Attempting modification with model: ${modelName}`);
+      const model = genAI.getGenerativeModel({ model: modelName });
+
       return await retryWithBackoff(async () => {
-        const result = await fallbackModel.generateContent({
+        const result = await model.generateContent({
           contents: [{ role: "user", parts: [{ text: systemPrompt }] }],
           generationConfig,
           safetySettings,
         });
         return result.response;
-      }, 2, 2000);
+      }, 3, 1000);
+    } catch (error) {
+      if (!isRetryableModelError(error)) {
+        throw error;
+      }
+
+      if (!isLastModel) {
+        console.log(`⚠️ Model ${modelName} failed (retryable). Trying next fallback model...`);
+        continue;
+      }
     }
-    
-    throw error;
   }
+
+  console.log('🛟 All API models failed, using local modification fallback...');
+  return { text: () => applyLocalModificationFallback(fallbackContext.componentCode, fallbackContext.userPrompt) };
 }
 
 /**
@@ -94,7 +134,7 @@ async function generateWithFallback(systemPrompt, modelName = MODEL_NAME) {
  */
 async function modifyComponent(componentCode, userPrompt, context = {}, imageDataUrl = null) {
   try {
-    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
+    fallbackContext = { componentCode, userPrompt };
 
     let finalPrompt = userPrompt;
   

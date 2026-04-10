@@ -1,100 +1,84 @@
 {
   "generation": {
-    "total": 19,
-    "successful": 19,
+    "total": 10,
+    "successful": 10,
     "failed": 0,
-    "syntaxValid": 15,
+    "syntaxValid": 10,
     "functionalComplete": 8,
-    "averageTime": 28913.317315789474,
-    "totalTime": 549353.029,
+    "averageTime": 13.89,
+    "totalTime": 138.9,
     "byComplexity": {
       "simple": {
-        "count": 11,
-        "avgTime": 44144.35027272727,
-        "totalTime": 485587.853
+        "count": 3,
+        "avgTime": 15.845999999999998,
+        "totalTime": 47.538
       },
       "medium": {
-        "count": 4,
-        "avgTime": 15895.9555,
-        "totalTime": 63583.822
+        "count": 3,
+        "avgTime": 13.744666666666667,
+        "totalTime": 41.234
       },
       "complex": {
         "count": 4,
-        "avgTime": 45.338499999999996,
-        "totalTime": 181.35399999999998
+        "avgTime": 12.532,
+        "totalTime": 50.128
       }
     }
   },
   "rag": {
     "totalQueries": 5,
-    "averageRetrievalTime": 191.4,
-    "totalRetrievalTime": 957,
-    "averageSimilarityScore": 0.8883482253764583,
-    "totalSimilarityScore": 4.441741126882292
+    "averageRetrievalTime": 700.2,
+    "totalRetrievalTime": 3501,
+    "averageSimilarityScore": 0.8846418524422358,
+    "totalSimilarityScore": 4.423209262211179
   },
   "api": {
-    "totalRequests": 83,
-    "averageLatency": 12076.795180722891,
-    "totalLatency": 1002374,
+    "totalRequests": 41,
+    "averageLatency": 3967.7804878048782,
+    "totalLatency": 162679,
     "byEndpoint": {
-      "/dashboard.html": {
+      "/metrics/reset": {
         "count": 1,
-        "totalLatency": 29,
-        "averageLatency": 29
+        "totalLatency": 5,
+        "averageLatency": 5
       },
       "/metrics": {
-        "count": 61,
-        "totalLatency": 168,
-        "averageLatency": 2.7540983606557377
-      },
-      "/favicon.ico": {
-        "count": 2,
-        "totalLatency": 14,
-        "averageLatency": 7
+        "count": 39,
+        "totalLatency": 149,
+        "averageLatency": 3.8205128205128207
       },
       "/run-tests": {
         "count": 1,
-        "totalLatency": 325241,
-        "averageLatency": 325241
-      },
-      "/generate": {
-        "count": 9,
-        "totalLatency": 549150,
-        "averageLatency": 61016.666666666664
-      },
-      "/modify": {
-        "count": 1,
-        "totalLatency": 27533,
-        "averageLatency": 27533
-      },
-      "/deploy": {
-        "count": 5,
-        "totalLatency": 100210,
-        "averageLatency": 20042
-      },
-      "/export": {
-        "count": 3,
-        "totalLatency": 29,
-        "averageLatency": 9.666666666666666
+        "totalLatency": 162525,
+        "averageLatency": 162525
       }
     }
   },
   "quality": {
-    "syntaxCorrectness": 78.94736842105263,
-    "functionalCompleteness": 42.10526315789473,
+    "syntaxCorrectness": 100,
+    "functionalCompleteness": 80,
+    "featureClassification": {
+      "tp": 44,
+      "fp": 53,
+      "fn": 3,
+      "tn": 0,
+      "precision": 45.36082474226804,
+      "recall": 93.61702127659575,
+      "f1Score": 61.111111111111114
+    },
     "ecommerceFeatures": {
-      "total": 7,
-      "withCart": 5,
-      "withPricing": 5,
-      "withPayment": 6
+      "total": 4,
+      "withCart": 4,
+      "withPricing": 4,
+      "withPayment": 4
     },
     "modifications": {
-      "total": 3,
+      "total": 2,
       "preservedFunctionality": 2,
       "preservedIds": 2
     }
   },
   "errors": [],
-  "sessionStart": 1764308435260,
-  "lastUpdate": 1764348875262
+  "sessionStart": 1775812103268,
+  "lastUpdate": 1775813696524
 }

@@ -21,7 +21,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 8000;
+const PORT = Number(process.env.PORT || 8000);
 const upload = multer();
 
 // Middleware
@@ -63,8 +63,14 @@ app.get('/metrics/detailed', (req, res) => {
 });
 
 app.post('/metrics/reset', (req, res) => {
-  // performanceMonitor.reset(); // Method not implemented yet
-  res.json({ message: 'Metrics reset requested (not implemented)' });
+  performanceMonitor.resetMetrics()
+    .then(() => {
+      res.json({ message: 'Metrics reset successfully' });
+    })
+    .catch((error) => {
+      console.error('Failed to reset metrics:', error);
+      res.status(500).json({ error: 'Failed to reset metrics' });
+    });
 });
 
 app.get('/test-results', (req, res) => {
@@ -391,19 +397,49 @@ app.post('/export', async (req, res) => {
   }
 });
 
+const tryListen = (port: number): Promise<number> => {
+  return new Promise((resolve, reject) => {
+    const server = app.listen(port, () => resolve(port));
+    server.on('error', reject);
+  });
+};
+
 // Server Initialization
 const startServer = async () => {
   try {
     await initializeRagSystem();
-    app.listen(PORT, () => {
-      console.log(`✅ Server running on http://localhost:${PORT}`);
-      console.log(`🚀 AI Website Generator Ready`);
-      if (ragSystem.isReady()) {
-        console.log('RAG system is ready.');
-      } else {
-        console.log('RAG system is not ready. Running in fallback mode.');
+
+    const maxPortAttempts = 10;
+    let activePort = PORT;
+    let isListening = false;
+
+    for (let attempt = 0; attempt < maxPortAttempts; attempt++) {
+      try {
+        activePort = await tryListen(activePort);
+        isListening = true;
+        break;
+      } catch (error) {
+        const portError = error as NodeJS.ErrnoException;
+        if (portError.code === 'EADDRINUSE') {
+          console.warn(`⚠️ Port ${activePort} is already in use. Trying ${activePort + 1}...`);
+          activePort += 1;
+          continue;
+        }
+        throw error;
       }
-    });
+    }
+
+    if (!isListening) {
+      throw new Error('Could not find an available port to start the server.');
+    }
+
+    console.log(`✅ Server running on http://localhost:${activePort}`);
+    console.log('🚀 AI Website Generator Ready');
+    if (ragSystem.isReady()) {
+      console.log('RAG system is ready.');
+    } else {
+      console.log('RAG system is not ready. Running in fallback mode.');
+    }
   } catch (error) {
     console.error('💥 Failed to start server:', error);
     process.exit(1);

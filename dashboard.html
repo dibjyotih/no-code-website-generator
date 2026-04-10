@@ -370,6 +370,44 @@
                     <div class="value" id="apiLatency">--</div>
                     <div class="subtext">Response time</div>
                 </div>
+
+                <div class="metric-card info">
+                    <div class="label">Precision</div>
+                    <div class="value" id="precision">--</div>
+                    <div class="subtext">Classification quality</div>
+                </div>
+
+                <div class="metric-card info">
+                    <div class="label">Recall</div>
+                    <div class="value" id="recall">--</div>
+                    <div class="subtext">Classification quality</div>
+                </div>
+
+                <div class="metric-card primary">
+                    <div class="label">F1 Score</div>
+                    <div class="value" id="f1Score">--</div>
+                    <div class="subtext">Balanced classification quality</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>🧮 Classification Quality (Feature-Level)</h2>
+                <div class="stat-row">
+                    <span class="stat-label">True Positives (TP)</span>
+                    <span class="stat-value" id="tpCount">--</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">False Positives (FP)</span>
+                    <span class="stat-value" id="fpCount">--</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">False Negatives (FN)</span>
+                    <span class="stat-value" id="fnCount">--</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">True Negatives (TN)</span>
+                    <span class="stat-value" id="tnCount">--</span>
+                </div>
             </div>
 
             <!-- Generation Statistics -->
@@ -504,7 +542,7 @@
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">AI Model</span>
-                    <span class="stat-value">Google Gemini 2.5 Flash</span>
+                    <span class="stat-value">Google Gemini 3.1 Flash lite</span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">Vector Store</span>
@@ -597,6 +635,16 @@
             document.getElementById('functionalCompleteness').textContent = metrics.generation.functionalCompleteness;
             document.getElementById('avgGenerationTime').textContent = metrics.generation.averageTime;
             document.getElementById('apiLatency').textContent = metrics.api.averageLatency;
+
+            // Classification quality metrics
+            document.getElementById('precision').textContent = metrics.quality?.precision || '0.00%';
+            document.getElementById('recall').textContent = metrics.quality?.recall || '0.00%';
+            document.getElementById('f1Score').textContent = metrics.quality?.f1Score || '0.00%';
+
+            document.getElementById('tpCount').textContent = metrics.quality?.confusionMatrix?.tp ?? 0;
+            document.getElementById('fpCount').textContent = metrics.quality?.confusionMatrix?.fp ?? 0;
+            document.getElementById('fnCount').textContent = metrics.quality?.confusionMatrix?.fn ?? 0;
+            document.getElementById('tnCount').textContent = metrics.quality?.confusionMatrix?.tn ?? 0;
 
             // Generation stats
             document.getElementById('totalGenerated').textContent = metrics.generation.totalGenerated;

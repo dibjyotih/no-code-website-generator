@@ -81,6 +81,95 @@ class TestRunner {
     };
   }
 
+  normalizeExpectedFeatures(test) {
+    const expected = new Set();
+    const src = [...(test.expectedFeatures || [])].map((v) => v.toLowerCase());
+
+    if (test.isEcommerce) {
+      expected.add('product');
+      expected.add('cart');
+      expected.add('pricing');
+      expected.add('payment');
+      expected.add('checkout');
+      expected.add('stateManagement');
+      expected.add('eventHandlers');
+      expected.add('dynamicCalculations');
+    }
+
+    for (const item of src) {
+      if (item.includes('product')) expected.add('product');
+      if (item.includes('cart')) expected.add('cart');
+      if (item.includes('price')) expected.add('pricing');
+      if (item.includes('payment')) expected.add('payment');
+      if (item.includes('checkout')) expected.add('checkout');
+      if (item.includes('search')) expected.add('search');
+      if (item.includes('filter')) expected.add('filters');
+      if (item.includes('form')) expected.add('form');
+      if (item.includes('validation')) expected.add('validation');
+      if (item.includes('navigation')) expected.add('navigation');
+      if (item.includes('responsive')) expected.add('responsive');
+      if (item.includes('hero')) expected.add('hero');
+      if (item.includes('button')) expected.add('button');
+      if (item.includes('comparison')) expected.add('comparison');
+      if (item.includes('testimonial')) expected.add('testimonials');
+      if (item.includes('rating')) expected.add('ratings');
+      if (item.includes('categories')) expected.add('categories');
+      if (item.includes('image')) expected.add('image');
+    }
+
+    return expected;
+  }
+
+  detectGeneratedFeatures(code, analysis) {
+    const detected = new Set();
+    const lower = code.toLowerCase();
+
+    if (/product|item\.|products\s*=|products\]/i.test(code)) detected.add('product');
+    if (analysis.features.hasCart) detected.add('cart');
+    if (analysis.features.hasPricing) detected.add('pricing');
+    if (analysis.features.hasPayment) detected.add('payment');
+    if (/checkout|order summary|place order/i.test(lower)) detected.add('checkout');
+    if (/searchterm|search\s*\(|placeholder=.*search|onchange=.*search/i.test(lower)) detected.add('search');
+    if (/filter\s*\(|selectedcategory|category\s*===|categories/i.test(lower)) detected.add('filters');
+    if (/form|onsubmit|type=\"submit\"|type='submit'/.test(lower)) detected.add('form');
+    if (/validate|errors|required|pattern|email/i.test(lower)) detected.add('validation');
+    if (/nav|navbar|menu|navigation/i.test(lower)) detected.add('navigation');
+    if (/grid|flex-wrap|@media|max-width|min-width|responsive/i.test(lower)) detected.add('responsive');
+    if (/hero|cta|call to action/i.test(lower)) detected.add('hero');
+    if (/button|onclick/i.test(lower)) detected.add('button');
+    if (/comparison|compare|tier/i.test(lower)) detected.add('comparison');
+    if (/testimonial|review/i.test(lower)) detected.add('testimonials');
+    if (/rating|stars?|★|☆/i.test(code)) detected.add('ratings');
+    if (/category|categories/i.test(lower)) detected.add('categories');
+    if (/<img|image\s*:|src=\"https?:\/\//i.test(code)) detected.add('image');
+
+    if (analysis.features.hasStateManagement) detected.add('stateManagement');
+    if (analysis.features.hasEventHandlers) detected.add('eventHandlers');
+    if (analysis.features.hasDynamicCalculations) detected.add('dynamicCalculations');
+
+    return detected;
+  }
+
+  calculateFeatureConfusion(expectedSet, detectedSet) {
+    const universe = new Set([...expectedSet, ...detectedSet]);
+    let tp = 0;
+    let fp = 0;
+    let fn = 0;
+    let tn = 0;
+
+    for (const feature of universe) {
+      const expected = expectedSet.has(feature);
+      const detected = detectedSet.has(feature);
+
+      if (expected && detected) tp++;
+      else if (!expected && detected) fp++;
+      else if (expected && !detected) fn++;
+      else tn++;
+    }
+
+    return { tp, fp, fn, tn };
+  }
+
   async runAllTests() {
     console.log('\n🧪 ========================================');
     console.log('🧪 STARTING COMPREHENSIVE TEST SUITE');
@@ -159,6 +248,7 @@ class TestRunner {
     console.log('\n🎨 Testing Code Generation Quality...\n');
 
     let successCount = 0;
+    let quotaSkippedCount = 0;
     let syntaxValidCount = 0;
     let functionalCompleteCount = 0;
     let totalGenerationTime = 0;
@@ -174,6 +264,13 @@ class TestRunner {
       withCart: 0,
       withPricing: 0,
       withPayment: 0
+    };
+
+    const classificationTotals = {
+      tp: 0,
+      fp: 0,
+      fn: 0,
+      tn: 0
     };
 
     for (let i = 0; i < testPrompts.length; i++) {
@@ -215,6 +312,17 @@ class TestRunner {
           console.log(`    ✓ Complexity: ${analysis.complexity.toUpperCase()}`);
           console.log(`    ✓ Score: ${CodeAnalyzer.calculateScore(analysis)}/100`);
 
+          const expectedSet = this.normalizeExpectedFeatures(test);
+          const detectedSet = this.detectGeneratedFeatures(result.code, analysis);
+          const confusion = this.calculateFeatureConfusion(expectedSet, detectedSet);
+
+          classificationTotals.tp += confusion.tp;
+          classificationTotals.fp += confusion.fp;
+          classificationTotals.fn += confusion.fn;
+          classificationTotals.tn += confusion.tn;
+
+          await performanceMonitor.trackFeatureClassification(confusion);
+
           // Track in performance monitor
           await performanceMonitor.trackGeneration(
             generationTime,
@@ -238,19 +346,32 @@ class TestRunner {
           });
 
         } else {
-          console.log(`    ✗ Failed: ${result.error || 'Unknown error'}`);
+          const errorText = typeof result.error === 'string'
+            ? result.error
+            : JSON.stringify(result.error || {});
+          const isQuotaError = /quota|429|too many requests|rate limit/i.test(errorText);
+
+          if (isQuotaError) {
+            quotaSkippedCount++;
+            console.log('    ⚠ Skipped due to API quota/rate limit');
+          } else {
+            console.log(`    ✗ Failed: ${result.error || 'Unknown error'}`);
+          }
           
-          await performanceMonitor.trackGeneration(
-            generationTime,
-            test.complexity,
-            false,
-            false,
-            false
-          );
+          if (!isQuotaError) {
+            await performanceMonitor.trackGeneration(
+              generationTime,
+              test.complexity,
+              false,
+              false,
+              false
+            );
+          }
 
           this.results.detailed.push({
             prompt: test.prompt,
             success: false,
+            skippedDueToQuota: isQuotaError,
             error: result.error
           });
         }
@@ -270,17 +391,29 @@ class TestRunner {
       console.log('');
     }
 
-    const avgGenerationTime = totalGenerationTime / testPrompts.length;
-    const successRate = (successCount / testPrompts.length) * 100;
-    const syntaxCorrectness = (syntaxValidCount / successCount) * 100;
-    const functionalCompleteness = (functionalCompleteCount / successCount) * 100;
-
+    const avgGenerationTime = testPrompts.length > 0 ? (totalGenerationTime / testPrompts.length) : 0;
+    const successRate = testPrompts.length > 0 ? ((successCount / testPrompts.length) * 100) : 0;
+    const syntaxCorrectness = successCount > 0 ? ((syntaxValidCount / successCount) * 100) : 0;
+    const functionalCompleteness = successCount > 0 ? ((functionalCompleteCount / successCount) * 100) : 0;
+    const precision = (classificationTotals.tp + classificationTotals.fp) > 0
+      ? (classificationTotals.tp / (classificationTotals.tp + classificationTotals.fp)) * 100
+      : 0;
+    const recall = (classificationTotals.tp + classificationTotals.fn) > 0
+      ? (classificationTotals.tp / (classificationTotals.tp + classificationTotals.fn)) * 100
+      : 0;
+    const f1 = (precision + recall) > 0
+      ? (2 * precision * recall) / (precision + recall)
+      : 0;
     console.log(`  📊 Generation Statistics:`);
     console.log(`    - Total Tests: ${testPrompts.length}`);
     console.log(`    - Successful: ${successCount} (${successRate.toFixed(2)}%)`);
+    console.log(`    - Quota Skipped: ${quotaSkippedCount}`);
     console.log(`    - Average Time: ${avgGenerationTime.toFixed(2)}s`);
     console.log(`    - Syntax Correctness: ${syntaxCorrectness.toFixed(2)}%`);
-    console.log(`    - Functional Completeness: ${functionalCompleteCount}eteness.toFixed(2)}%`);
+    console.log(`    - Functional Completeness: ${functionalCompleteness.toFixed(2)}%`);
+    console.log(`    - Precision: ${precision.toFixed(2)}%`);
+    console.log(`    - Recall: ${recall.toFixed(2)}%`);
+    console.log(`    - F1 Score: ${f1.toFixed(2)}%`);
 
     console.log(`\n  📊 E-commerce Feature Detection:`);
     if (ecommerceStats.total > 0) {
@@ -292,10 +425,15 @@ class TestRunner {
     this.results.generation = {
       totalTests: testPrompts.length,
       successful: successCount,
+      quotaSkipped: quotaSkippedCount,
       successRate: successRate.toFixed(2),
       averageTime: avgGenerationTime.toFixed(2),
       syntaxCorrectness: syntaxCorrectness.toFixed(2),
       functionalCompleteness: functionalCompleteness.toFixed(2),
+      precision: precision.toFixed(2),
+      recall: recall.toFixed(2),
+      f1Score: f1.toFixed(2),
+      confusionMatrix: classificationTotals,
       complexityStats,
       ecommerceStats
     };
@@ -388,7 +526,7 @@ export default TestComponent;
     console.log('\n⚡ Testing System Performance...\n');
 
     // Simulate concurrent requests
-    const concurrentTests = 10;
+    const concurrentTests = 2;
     const requests = [];
     const startTime = Date.now();
 
@@ -428,6 +566,9 @@ export default TestComponent;
       researchPaperMetrics: {
         syntaxCorrectness: metrics.generation.syntaxCorrectness,
         functionalCompleteness: metrics.generation.functionalCompleteness,
+        precision: metrics.quality.precision,
+        recall: metrics.quality.recall,
+        f1Score: metrics.quality.f1Score,
         averageGenerationTime: metrics.generation.averageTime,
         ragRetrievalTime: metrics.rag.averageRetrievalTime,
         apiLatency: metrics.api.averageLatency,

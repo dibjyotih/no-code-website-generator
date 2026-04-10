@@ -18,10 +18,15 @@ export function handleGenerationError(error, prompt) {
     suggestion = "Your prompt is very short. Try adding more details about what you want to build.";
   }
 
+  const status = typeof error?.status === 'number' ? error.status : undefined;
+  const details = String(error?.message || '').slice(0, 500);
+
   return {
     error: "Generation Failed",
     message: userMessage,
     suggestion: suggestion,
+    status,
+    details,
   };
 }
 

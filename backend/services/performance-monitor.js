@@ -39,6 +39,15 @@ class PerformanceMonitor {
       quality: {
         syntaxCorrectness: 0, // percentage
         functionalCompleteness: 0, // percentage
+        featureClassification: {
+          tp: 0,
+          fp: 0,
+          fn: 0,
+          tn: 0,
+          precision: 0,
+          recall: 0,
+          f1Score: 0
+        },
         ecommerceFeatures: {
           total: 0,
           withCart: 0,
@@ -66,6 +75,29 @@ class PerformanceMonitor {
       const loaded = JSON.parse(data);
       // Merge loaded metrics with current structure
       this.metrics = { ...this.metrics, ...loaded };
+
+      // Backfill newly introduced nested fields for backward compatibility
+      if (!this.metrics.quality) this.metrics.quality = {};
+      if (!this.metrics.quality.featureClassification) {
+        this.metrics.quality.featureClassification = {
+          tp: 0,
+          fp: 0,
+          fn: 0,
+          tn: 0,
+          precision: 0,
+          recall: 0,
+          f1Score: 0
+        };
+      }
+      if (!this.metrics.generation?.byComplexity) {
+        this.metrics.generation.byComplexity = {
+          simple: { count: 0, avgTime: 0, totalTime: 0 },
+          medium: { count: 0, avgTime: 0, totalTime: 0 },
+          complex: { count: 0, avgTime: 0, totalTime: 0 }
+        };
+      }
+
+      this.updateQualityMetrics();
       console.log('📊 Loaded existing metrics from disk');
     } catch (error) {
       console.log('📊 Starting fresh metrics collection');
@@ -179,6 +211,18 @@ class PerformanceMonitor {
     await this.saveMetrics();
   }
 
+  // Track feature classification for precision/recall/F1/hallucination metrics
+  async trackFeatureClassification({ tp = 0, fp = 0, fn = 0, tn = 0 }) {
+    this.metrics.quality.featureClassification.tp += tp;
+    this.metrics.quality.featureClassification.fp += fp;
+    this.metrics.quality.featureClassification.fn += fn;
+    this.metrics.quality.featureClassification.tn += tn;
+
+    this.updateQualityMetrics();
+    this.metrics.lastUpdate = Date.now();
+    await this.saveMetrics();
+  }
+
   // Track error
   async trackError(type, message, details = {}) {
     const error = {
@@ -201,13 +245,27 @@ class PerformanceMonitor {
 
   // Update quality metrics percentages
   updateQualityMetrics() {
-    const total = this.metrics.generation.total;
-    if (total > 0) {
+    const successful = this.metrics.generation.successful;
+    if (successful > 0) {
       this.metrics.quality.syntaxCorrectness = 
-        (this.metrics.generation.syntaxValid / total) * 100;
+        (this.metrics.generation.syntaxValid / successful) * 100;
       this.metrics.quality.functionalCompleteness = 
-        (this.metrics.generation.functionalComplete / total) * 100;
+        (this.metrics.generation.functionalComplete / successful) * 100;
+    } else {
+      this.metrics.quality.syntaxCorrectness = 0;
+      this.metrics.quality.functionalCompleteness = 0;
     }
+
+    const c = this.metrics.quality.featureClassification;
+    const tpFp = c.tp + c.fp;
+    const tpFn = c.tp + c.fn;
+
+    c.precision = tpFp > 0 ? (c.tp / tpFp) * 100 : 0;
+    c.recall = tpFn > 0 ? (c.tp / tpFn) * 100 : 0;
+
+    const p = c.precision / 100;
+    const r = c.recall / 100;
+    c.f1Score = (p + r) > 0 ? ((2 * p * r) / (p + r)) * 100 : 0;
   }
 
   // Get current metrics
@@ -223,6 +281,16 @@ class PerformanceMonitor {
   // Get summary statistics
   getSummary() {
     const metrics = this.getMetrics();
+    const fc = metrics.quality?.featureClassification || {
+      tp: 0,
+      fp: 0,
+      fn: 0,
+      tn: 0,
+      precision: 0,
+      recall: 0,
+      f1Score: 0
+    };
+
     return {
       generation: {
         totalGenerated: metrics.generation.total,
@@ -230,8 +298,28 @@ class PerformanceMonitor {
           ? ((metrics.generation.successful / metrics.generation.total) * 100).toFixed(2) + '%'
           : '0%',
         averageTime: metrics.generation.averageTime.toFixed(2) + 's',
+        simpleTime: metrics.generation.byComplexity.simple.count > 0
+          ? metrics.generation.byComplexity.simple.avgTime.toFixed(2) + 's'
+          : 'N/A',
+        mediumTime: metrics.generation.byComplexity.medium.count > 0
+          ? metrics.generation.byComplexity.medium.avgTime.toFixed(2) + 's'
+          : 'N/A',
+        complexTime: metrics.generation.byComplexity.complex.count > 0
+          ? metrics.generation.byComplexity.complex.avgTime.toFixed(2) + 's'
+          : 'N/A',
         syntaxCorrectness: metrics.quality.syntaxCorrectness.toFixed(2) + '%',
         functionalCompleteness: metrics.quality.functionalCompleteness.toFixed(2) + '%'
+      },
+      quality: {
+        precision: fc.precision.toFixed(2) + '%',
+        recall: fc.recall.toFixed(2) + '%',
+        f1Score: fc.f1Score.toFixed(2) + '%',
+        confusionMatrix: {
+          tp: fc.tp,
+          fp: fc.fp,
+          fn: fc.fn,
+          tn: fc.tn
+        }
       },
       rag: {
         totalQueries: metrics.rag.totalQueries,
@@ -306,6 +394,15 @@ class PerformanceMonitor {
       quality: {
         syntaxCorrectness: 0,
         functionalCompleteness: 0,
+        featureClassification: {
+          tp: 0,
+          fp: 0,
+          fn: 0,
+          tn: 0,
+          precision: 0,
+          recall: 0,
+          f1Score: 0
+        },
         ecommerceFeatures: {
           total: 0,
           withCart: 0,
