@@ -1,17 +1,17 @@
 {
   "generation": {
-    "total": 10,
-    "successful": 10,
+    "total": 13,
+    "successful": 13,
     "failed": 0,
-    "syntaxValid": 10,
-    "functionalComplete": 8,
-    "averageTime": 13.89,
-    "totalTime": 138.9,
+    "syntaxValid": 13,
+    "functionalComplete": 11,
+    "averageTime": 4154.53076923077,
+    "totalTime": 54008.9,
     "byComplexity": {
       "simple": {
-        "count": 3,
-        "avgTime": 15.845999999999998,
-        "totalTime": 47.538
+        "count": 6,
+        "avgTime": 8986.256333333333,
+        "totalTime": 53917.538
       },
       "medium": {
         "count": 3,
@@ -33,9 +33,9 @@
     "totalSimilarityScore": 4.423209262211179
   },
   "api": {
-    "totalRequests": 41,
-    "averageLatency": 3967.7804878048782,
-    "totalLatency": 162679,
+    "totalRequests": 128,
+    "averageLatency": 2074.0703125,
+    "totalLatency": 265481,
     "byEndpoint": {
       "/metrics/reset": {
         "count": 1,
@@ -43,20 +43,35 @@
         "averageLatency": 5
       },
       "/metrics": {
-        "count": 39,
-        "totalLatency": 149,
-        "averageLatency": 3.8205128205128207
+        "count": 119,
+        "totalLatency": 440,
+        "averageLatency": 3.697478991596639
       },
       "/run-tests": {
         "count": 1,
         "totalLatency": 162525,
         "averageLatency": 162525
+      },
+      "/generate": {
+        "count": 3,
+        "totalLatency": 53908,
+        "averageLatency": 17969.333333333332
+      },
+      "/export": {
+        "count": 1,
+        "totalLatency": 5,
+        "averageLatency": 5
+      },
+      "/modify": {
+        "count": 3,
+        "totalLatency": 48598,
+        "averageLatency": 16199.333333333334
       }
     }
   },
   "quality": {
     "syntaxCorrectness": 100,
-    "functionalCompleteness": 80,
+    "functionalCompleteness": 84.61538461538461,
     "featureClassification": {
       "tp": 44,
       "fp": 53,
@@ -67,18 +82,18 @@
       "f1Score": 61.111111111111114
     },
     "ecommerceFeatures": {
-      "total": 4,
-      "withCart": 4,
-      "withPricing": 4,
-      "withPayment": 4
+      "total": 5,
+      "withCart": 5,
+      "withPricing": 5,
+      "withPayment": 5
     },
     "modifications": {
-      "total": 2,
-      "preservedFunctionality": 2,
-      "preservedIds": 2
+      "total": 5,
+      "preservedFunctionality": 5,
+      "preservedIds": 5
     }
   },
   "errors": [],
   "sessionStart": 1775812103268,
-  "lastUpdate": 1775813696524
+  "lastUpdate": 1777006965140
 }
